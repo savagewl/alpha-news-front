@@ -1,0 +1,148 @@
+/* Общие раскладки страниц */
+
+.row {
+  display: flex;
+  align-items: flex-start;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+}
+
+.side300 {
+  flex: none;
+  width: 300px;
+}
+
+.side330 {
+  flex: none;
+  width: 330px;
+}
+
+.cols2 > *,
+.cols3 > *,
+.cols4 > * {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Фирменный лаймовый блок (вход в аналитику, резюме дня) */
+.lime {
+  display: flex;
+  align-items: center;
+  background: var(--c-lime);
+  border-radius: 16px;
+}
+
+.limeTitle {
+  font-weight: 700;
+}
+
+/* Главная */
+.amount {
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 48px;
+}
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.tableRow {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Выбор компании */
+.search {
+  display: block;
+  width: 100%;
+  padding: 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--c-surface);
+  font-size: 15px;
+  line-height: 22px;
+  outline: none;
+}
+
+.search::placeholder {
+  color: var(--c-muted);
+}
+
+.company {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+  border-radius: 12px;
+  background: var(--c-surface);
+  box-shadow: inset 0 0 0 1px var(--c-border);
+}
+
+.companySelected {
+  box-shadow: inset 0 0 0 2px var(--c-red);
+}
+
+.companyTop {
+  display: flex;
+  justify-content: space-between;
+}
+
+.pick {
+  display: flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.roleOption {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--c-surface);
+  font-size: 13px;
+  line-height: 19px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.roleOptionActive {
+  background: var(--c-red-soft);
+  font-weight: 600;
+}
+
+/* Профиль */
+.bigStatus {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 37px;
+}
+
+/* Сводка */
+.event {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 0;
+  box-shadow: inset 0 -1px 0 var(--c-border);
+}
+
+.save {
+  font-size: 12px;
+  line-height: 15px;
+  color: var(--c-muted);
+}

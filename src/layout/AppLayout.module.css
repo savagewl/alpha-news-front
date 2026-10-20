@@ -1,0 +1,145 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  height: 80px;
+  padding: 0 28px;
+  background: var(--c-surface);
+  box-shadow: inset 0 -1px 0 var(--c-border);
+}
+
+.logo {
+  font-size: 23px;
+  font-weight: 800;
+  line-height: 28px;
+  color: var(--c-red);
+  white-space: nowrap;
+}
+
+.company {
+  width: 300px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-black);
+}
+
+.entry {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--c-red-soft);
+  color: var(--c-red);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.help {
+  color: var(--c-muted);
+}
+
+.user {
+  display: flex;
+}
+
+.userButton {
+  display: flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+/* Вход и регистрация: без сайдбара, колонка той же ширины, что контент банка */
+.authContent {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1224px;
+  margin: 0 auto;
+  padding: 28px 36px 40px;
+}
+
+.workspace {
+  display: flex;
+  align-items: flex-start;
+}
+
+.nav {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 216px;
+  padding: 28px 16px;
+}
+
+.navCaption {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--c-muted);
+}
+
+.bankItem {
+  line-height: 19px;
+  color: var(--c-black);
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  height: 36px;
+}
+
+.navItemActive {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--c-surface);
+  color: var(--c-red);
+  font-weight: 700;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 28px 36px 40px;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  line-height: 13px;
+  color: var(--c-muted);
+}
+
+/* Шапка страницы */
+.crumbs {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--c-muted);
+  white-space: pre;
+}
+
+.context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wordmark {
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 17px;
+  color: var(--c-black);
+}
+
+.title {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
