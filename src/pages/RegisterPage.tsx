@@ -82,11 +82,11 @@ export default function RegisterPage() {
         crumb="Регистрация"
         title="Регистрация пользователя"
         subtitle="Доступ выдаётся человеку, а не компании: у одной компании может быть несколько пользователей с разными ролями."
-        tag={<Tag>Синтетические данные</Tag>}
+        tag={null}
       />
 
-      <form className={s.row} style={{ gap: 24 }} onSubmit={onSubmit} noValidate>
-        <div className={`${s.col} ${s.grow}`} style={{ gap: 20 }}>
+      <form className={`${s.split} ${s.split330}`} onSubmit={onSubmit} noValidate>
+        <div className={s.col} style={{ gap: 20 }}>
           <Panel>
             <h2 className="t-h2">Данные пользователя</h2>
             <TextField
@@ -106,7 +106,7 @@ export default function RegisterPage() {
               error={errors.email}
               onChange={(e) => set('email', e.target.value)}
             />
-            <div className={`${s.row} ${s.cols2}`} style={{ gap: 24 }}>
+            <div className={s.grid2}>
               <TextField
                 label="Пароль"
                 type="password"
@@ -143,7 +143,7 @@ export default function RegisterPage() {
                     {active ? '✓ ' : ''}
                     {c.name}
                     <span className={a.optionHint}>
-                      ID {c.id} · {c.region}
+                      ID {c.id} · {c.city}
                     </span>
                   </button>
                 )
@@ -203,7 +203,7 @@ export default function RegisterPage() {
           </Panel>
         </div>
 
-        <div className={`${s.col} ${s.side330}`} style={{ gap: 16 }}>
+        <div className={s.aside}>
           <Panel>
             <h2 className="t-h2">Как устроен доступ</h2>
             <Tag variant="red">company_id → user_id → role</Tag>

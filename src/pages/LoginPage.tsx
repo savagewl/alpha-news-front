@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useAuth } from '../auth/context'
 import { AuthError, TEST_PASSWORD, testAccounts } from '../auth/mockAuth'
-import { Button, Divider, Panel, Tag, TextField } from '../components/ui'
+import { Button, Divider, Panel, TextField } from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
 import a from './auth.module.css'
 import s from './pages.module.css'
@@ -49,11 +49,11 @@ export default function LoginPage() {
         crumb="Вход"
         title="Вход в Альфа-Бизнес"
         subtitle="Новостная аналитика доступна сотрудникам компании с доступом к интернет-банку"
-        tag={<Tag>Синтетические данные</Tag>}
+        tag={null}
       />
 
-      <div className={s.row} style={{ gap: 24 }}>
-        <div className={`${s.col} ${s.grow}`} style={{ gap: 20 }}>
+      <div className={`${s.split} ${s.split330}`}>
+        <div className={s.col} style={{ gap: 20 }}>
           <Panel>
             <form className={a.form} onSubmit={onSubmit} noValidate>
               <h2 className="t-h2">Вход по email</h2>
@@ -96,10 +96,10 @@ export default function LoginPage() {
             </form>
           </Panel>
 
-          <div className={s.lime} style={{ padding: 32 }}>
+          <div className={s.lime}>
             <div className={s.col} style={{ gap: 12 }}>
               <p className={s.eyebrow}>АЛЬФА БУДУЩЕЕ / FINANCIAL INTELLIGENCE</p>
-              <h2 className={s.limeTitle} style={{ fontSize: 34, lineHeight: '39px' }}>
+              <h2 className={s.limeTitle}>
                 Не просто новости.
                 <br />
                 Контекст для ваших решений.
@@ -112,7 +112,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className={`${s.col} ${s.side330}`} style={{ gap: 16 }}>
+        <div className={s.aside}>
           <Panel>
             <h2 className="t-h2">Тестовые учётные записи</h2>
             <p className="t-13">

@@ -1,4 +1,9 @@
+/* Брейкпоинты: > 1200 — десктоп с сайдбаром; 721–1200 — планшет с рейлом; ≤ 720 — мобильный с таббаром */
+
 .header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: 32px;
@@ -16,10 +21,21 @@
   white-space: nowrap;
 }
 
-.company {
+.headerCompany {
   width: 300px;
+}
+
+.company {
+  min-width: 0;
+}
+
+.companyTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 13px;
   font-weight: 600;
+  line-height: 16px;
   color: var(--c-black);
 }
 
@@ -32,22 +48,46 @@
   color: var(--c-red);
   font-weight: 700;
   white-space: nowrap;
+  transition: box-shadow 0.15s;
+}
+
+.entry:hover {
+  box-shadow: inset 0 0 0 1px var(--c-red);
 }
 
 .help {
   color: var(--c-muted);
 }
 
+.help:hover {
+  color: var(--c-text);
+}
+
 .user {
   display: flex;
 }
 
-.userButton {
+.userCard {
   display: flex;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+}
+
+.roleTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 13px;
+  white-space: nowrap;
+}
+
+.menuNote {
+  padding: 6px 10px 8px;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--c-muted);
 }
 
 /* Вход и регистрация: без сайдбара, колонка той же ширины, что контент банка */
@@ -66,6 +106,8 @@
 }
 
 .nav {
+  position: sticky;
+  top: 80px;
   flex: none;
   display: flex;
   flex-direction: column;
@@ -85,19 +127,48 @@
   color: var(--c-black);
 }
 
+.bankItemStub {
+  cursor: default;
+}
+
 .navItem {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   height: 36px;
+  padding: 0 10px;
+  margin: 0 -10px;
+  border-radius: 8px;
+  transition: background-color 0.15s;
 }
 
-.navItemActive {
-  width: 100%;
-  padding: 10px;
-  border-radius: 8px;
+.navItem:hover {
+  background: rgb(255 255 255 / 0.6);
+}
+
+.navItemActive,
+.navItemActive:hover {
   background: var(--c-surface);
   color: var(--c-red);
   font-weight: 700;
+}
+
+.count {
+  min-width: 20px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: var(--c-red-soft);
+  color: var(--c-red);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 13px;
+  text-align: center;
+}
+
+.rail,
+.tabbar,
+.mobileContext {
+  display: none;
 }
 
 .content {
@@ -112,6 +183,7 @@
 .footer {
   display: flex;
   justify-content: space-between;
+  gap: 16px;
   font-size: 11px;
   line-height: 13px;
   color: var(--c-muted);
@@ -122,7 +194,7 @@
   font-size: 12px;
   line-height: 17px;
   color: var(--c-muted);
-  white-space: pre;
+  white-space: pre-wrap;
 }
 
 .context {
@@ -142,4 +214,239 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.headExtra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* ---------- Планшет ---------- */
+@media (max-width: 1200px) {
+  .header {
+    gap: 24px;
+    height: 76px;
+    padding: 0 24px;
+  }
+
+  .headerCompany {
+    width: auto;
+    margin-left: auto;
+    order: 3;
+  }
+
+  .entry {
+    order: 2;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 13px;
+  }
+
+  .entry svg {
+    display: none;
+  }
+
+  .help {
+    display: none;
+  }
+
+  .user {
+    order: 5;
+  }
+
+  .nav {
+    display: none;
+  }
+
+  .rail {
+    position: sticky;
+    top: 76px;
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    width: 80px;
+    padding: 28px 0;
+  }
+
+  .railItem {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    color: var(--c-muted);
+  }
+
+  .railItem:hover {
+    color: var(--c-text);
+  }
+
+  .railItemActive,
+  .railItemActive:hover {
+    background: var(--c-red-soft);
+    color: var(--c-red);
+  }
+
+  .content {
+    padding: 28px 28px 40px 16px;
+  }
+}
+
+/* ---------- Мобильный ---------- */
+@media (max-width: 720px) {
+  .header {
+    height: 60px;
+    padding: 0 16px;
+  }
+
+  .logo {
+    font-size: 19px;
+    line-height: 23px;
+  }
+
+  .headerCompany,
+  .entry {
+    display: none;
+  }
+
+  .user {
+    margin-left: auto;
+  }
+
+  .rail {
+    display: none;
+  }
+
+  .content,
+  .authContent {
+    gap: 20px;
+    padding: 20px 16px 104px;
+  }
+
+  .authContent {
+    padding-bottom: 40px;
+  }
+
+  .footer {
+    flex-direction: column;
+  }
+
+  .desktopOnly {
+    display: none;
+  }
+
+  .mobileContext {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px 20px;
+    border-radius: 16px;
+    background: var(--c-surface);
+    box-shadow: inset 0 0 0 1px var(--c-border);
+  }
+
+  .mobileContext .companyTrigger {
+    font-size: 15px;
+    line-height: 22px;
+  }
+
+  .mobileContext .roleTrigger {
+    width: 100%;
+    justify-content: space-between;
+    font-size: 13px;
+    line-height: 19px;
+  }
+
+  .mobileContext > :last-child,
+  .mobileContext > :last-child > button {
+    width: 100%;
+  }
+
+  .tabbar {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+    background: var(--c-surface);
+    box-shadow: inset 0 1px 0 var(--c-border);
+  }
+
+  .tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 0;
+    border: 0;
+    background: none;
+    color: var(--c-muted);
+    font-size: 11px;
+    line-height: 13px;
+    cursor: pointer;
+  }
+
+  .tabActive {
+    color: var(--c-red);
+    font-weight: 600;
+  }
+
+  .sheetBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+    display: flex;
+    align-items: flex-end;
+    background: rgb(0 0 0 / 0.32);
+  }
+
+  .sheet {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    padding: 20px 16px 96px;
+    border-radius: 20px 20px 0 0;
+    background: var(--c-surface);
+  }
+
+  .sheetHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .sheetClose {
+    display: flex;
+    padding: 8px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--c-bg);
+    cursor: pointer;
+  }
+
+  .sheetItem {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 15px;
+    line-height: 22px;
+  }
+
+  .sheetItemActive {
+    background: var(--c-red-soft);
+    color: var(--c-red);
+    font-weight: 600;
+  }
 }
