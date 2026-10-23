@@ -1,10 +1,13 @@
 // Рабочий контекст пользователя: выбранная компания, роль, сохранённые события.
-// Хранится в localStorage отдельно для каждого пользователя; при входе берётся из учётной записи.
+// Хранится в localStorage отдельно для каждого пользователя. Компанию выбирают из списка с бэка.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useAuth } from '../auth/context'
-import { WorkspaceContext, type Workspace, type WorkspaceData } from './context'
-
-const key = (userId: string) => `alpha-news:workspace:${userId}`
+import {
+  WorkspaceContext,
+  workspaceKey as key,
+  type Workspace,
+  type WorkspaceData,
+} from './context'
 
 function load(userId: string, fallback: WorkspaceData): WorkspaceData {
   try {
@@ -21,13 +24,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const initial = useCallback(
     (): WorkspaceData =>
       load(userId, {
-        companyId: user?.companyId ?? 'U001',
-        role: user?.role ?? 'Финансовый директор',
+        companyId: '',
+        role: 'Финансовый директор',
         saved: [],
         lastEventId: null,
         notes: {},
       }),
-    [userId, user?.companyId, user?.role],
+    [userId],
   )
   const [data, setData] = useState<WorkspaceData>(initial)
   const [owner, setOwner] = useState(userId)

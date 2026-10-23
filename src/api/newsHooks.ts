@@ -1,6 +1,6 @@
 // Хуки экранов новостной аналитики. Сейчас источник — мок newsMock; при подключении бэкенда
 // заменить вызовы newsMock.* на запросы через api-клиент, сигнатуры хуков не меняются.
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { newsMock } from '../mocks/api'
 
 export const newsKeys = {
@@ -14,16 +14,6 @@ export const useDigest = (companyId: string, role: string) =>
     queryKey: newsKeys.digest(companyId, role),
     queryFn: () => newsMock.digest(companyId, role),
   })
-
-export const usePullNews = (companyId: string) => {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: () => newsMock.pullNews(companyId),
-    onSuccess: (event) => {
-      if (event) return qc.invalidateQueries({ queryKey: ['digest', companyId] })
-    },
-  })
-}
 
 export const useInterpretation = (eventId: string | undefined) =>
   useQuery({

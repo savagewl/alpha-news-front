@@ -1,8 +1,9 @@
 :root {
-  --c-bg: #f3f4f3;
+  --c-bg: #f4f3f7;
   --c-surface: #ffffff;
   --c-border: #dfe3df;
   --c-text: #181a19;
+  --c-hint: #a1a1a2;
   --c-black: #000000;
   --c-muted: #6e7470;
   --c-red: #ef3124;

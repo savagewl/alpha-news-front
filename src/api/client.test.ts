@@ -28,4 +28,26 @@ describe('api client', () => {
     })
     expect(ApiError).toBeDefined()
   })
+
+  it('formats CSV import errors', async () => {
+    mockFetch({
+      ok: false,
+      status: 422,
+      statusText: 'Unprocessable Entity',
+      text: async () =>
+        '{"detail":{"code":"invalid_csv","errors":[{"row":1,"message":"Missing columns","columns":["CITY","REGION"]}]}}',
+    })
+    await expect(api.get('/x')).rejects.toMatchObject({
+      message: 'Строка 1: Missing columns — CITY, REGION',
+    })
+  })
+
+  it('sends bearer token when signed in', async () => {
+    localStorage.setItem('alpha-news:token', 't0k')
+    const spy = mockFetch({ ok: true, text: async () => '' })
+    await api.get('/x')
+    const headers = spy.mock.calls[0][1]!.headers as Record<string, string>
+    expect(headers.Authorization).toBe('Bearer t0k')
+    localStorage.removeItem('alpha-news:token')
+  })
 })

@@ -1,4 +1,7 @@
-import { Field, Panel, Tag } from '../components/ui'
+import { useNewsSources } from '../api/articleHooks'
+import type { NewsFeed } from '../api/articleTypes'
+import { formatDate } from '../api/companyFormat'
+import { Field, Panel, Skeleton, Tag } from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
 import s from './pages.module.css'
 
@@ -107,6 +110,8 @@ export default function HowPage() {
         </div>
       </Panel>
 
+      <NewsSources />
+
       <section className={s.dark} style={{ gap: 20 }}>
         <p className={s.darkEyebrow}>СОБСТВЕННАЯ ОРКЕСТРАЦИЯ / НЕ ВНЕШНЯЯ АГЕНТНАЯ СИСТЕМА</p>
         <h2 className={s.limeTitle} style={{ fontSize: 27, lineHeight: '31px' }}>
@@ -181,5 +186,70 @@ export default function HowPage() {
         </div>
       </Panel>
     </>
+  )
+}
+
+const feedStatus = (feeds: NewsFeed[]) =>
+  !feeds.some((f) => f.enabled)
+    ? ({ variant: 'neutral', label: 'Отключён' } as const)
+    : feeds.some((f) => f.needs_attention)
+      ? ({ variant: 'red', label: 'Требует внимания' } as const)
+      : ({ variant: 'green', label: 'Работает' } as const)
+
+const latest = (dates: (string | null)[]) =>
+  dates
+    .filter((d): d is string => !!d)
+    .sort()
+    .at(-1) ?? null
+
+/** Разрешённые RSS-источники и состояние их опроса — живые данные бэкенда */
+function NewsSources() {
+  const { data, isPending, isError, refetch } = useNewsSources()
+  return (
+    <Panel>
+      <h2 className="t-h2">Источники новостей</h2>
+      <p className="t-13">
+        Сервис сам опрашивает RSS-ленты разрешённых изданий и складывает публикации в общий корпус.
+        Отбор под компанию идёт уже по нему.
+      </p>
+      {isPending && <Skeleton lines={3} />}
+      {isError && (
+        <p className="t-13 c-red" role="alert">
+          Не удалось получить состояние источников.{' '}
+          <button type="button" className={s.linkButton} onClick={() => refetch()}>
+            Повторить
+          </button>
+        </p>
+      )}
+      {data && (
+        <div className={s.grid3}>
+          {data.map((src) => {
+            const status = feedStatus(src.feeds)
+            const checked = latest(src.feeds.map((f) => f.last_checked_at))
+            const fresh = latest(src.feeds.map((f) => f.last_new_at))
+            const interval = Math.min(...src.feeds.map((f) => f.poll_interval_seconds))
+            const error = src.feeds.find((f) => f.last_error)?.last_error
+            return (
+              <div key={src.code} className={s.card}>
+                <div className={`${s.row} ${s.between}`}>
+                  <a className={s.cardTitle} href={src.site_url} target="_blank" rel="noreferrer">
+                    {src.name}
+                  </a>
+                  <Tag variant={status.variant}>{status.label}</Tag>
+                </div>
+                <Field label="Последний опрос" value={checked ? formatDate(checked) : '—'} />
+                <Field label="Последняя новая публикация" value={fresh ? formatDate(fresh) : '—'} />
+                {Number.isFinite(interval) && (
+                  <p className="t-12 c-muted">
+                    Опрос каждые {Math.max(1, Math.round(interval / 60))} мин
+                  </p>
+                )}
+                {error && <p className="t-12 c-red">{error}</p>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </Panel>
   )
 }

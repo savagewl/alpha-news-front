@@ -359,6 +359,20 @@
   cursor: pointer;
 }
 
+/* Ссылка на сайт издания */
+.externalLink {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  color: var(--c-red);
+  font-weight: 600;
+}
+
+.externalLink:hover {
+  text-decoration: underline;
+}
+
 /* Разбор события: шесть вопросов */
 .block {
   display: flex;

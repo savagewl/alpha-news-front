@@ -1,9 +1,13 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
+import { setUnauthorizedHandler } from '../api/client'
+import { seedWorkspace } from '../state/context'
+import { authApi, type User } from './authApi'
 import { AuthContext, useAuth, type AuthState } from './context'
-import { authApi, type User } from './mockAuth'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient()
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -14,6 +18,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false))
   }, [])
 
+  // бэк отверг токен — выходим, RequireAuth отправит на страницу входа
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      void authApi.logout()
+      setUser(null)
+      queryClient.clear()
+    })
+    return () => setUnauthorizedHandler(null)
+  }, [queryClient])
+
   const value = useMemo<AuthState>(
     () => ({
       user,
@@ -23,17 +37,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(u)
         return u
       },
-      register: async (input) => {
+      register: async ({ role, ...input }) => {
         const u = await authApi.register(input)
+        // роли на бэке нет — выбор из формы кладём в локальный контекст пользователя
+        seedWorkspace(u.id, { role })
         setUser(u)
         return u
       },
       logout: async () => {
         await authApi.logout()
         setUser(null)
+        queryClient.clear()
       },
     }),
-    [user, loading],
+    [user, loading, queryClient],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
@@ -50,7 +67,7 @@ export function RequireAuth() {
 
 /**
  * Вход и регистрация: авторизованного пользователя ведём туда, откуда его отправили на вход,
- * иначе на главную. Так же срабатывает сразу после успешного входа.
+ * иначе на главную. После регистрации — к компаниям: у нового пользователя их ещё нет.
  */
 export function GuestOnly() {
   const { user, loading } = useAuth()
@@ -58,7 +75,8 @@ export function GuestOnly() {
   if (loading) return null
   if (user) {
     const from = (location.state as { from?: string } | null)?.from
-    return <Navigate to={from ?? '/'} replace />
+    const fallback = location.pathname === '/register' ? '/companies' : '/'
+    return <Navigate to={from ?? fallback} replace />
   }
   return <Outlet />
 }

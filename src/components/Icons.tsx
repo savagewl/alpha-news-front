@@ -195,3 +195,54 @@ export const UserIcon = () => (
 export const ArrowUpRightIcon = () => (
   <Icon name="arrowUpRight" size={36} strokeWidth={2} color="var(--c-red)" />
 )
+
+// Иконки нового макета главной — контуры экспортированы из Figma как есть
+
+/** Знак «А» Альфа-Банка: в сайдбаре и на мини-карте счёта */
+export const AlfaLogo = ({
+  width = 41,
+  color = 'var(--c-red)',
+}: {
+  width?: number
+  color?: string
+}) => (
+  <svg width={width} height={(width * 60) / 41} viewBox="0 0 41 60" fill={color} aria-hidden>
+    <path
+      fillRule="evenodd"
+      d="M1.2 59.98v-8.19h39.13v8.19H1.2Zm13.98-34.52h10.87L20.87 9.03h-.2l-5.49 16.43ZM27.88 6l11.54 34.66h-8.54l-2.59-8.24H12.84l-2.8 8.24H2.01L14.12 6C15.3 2.64 16.66 0 21.07 0c4.41 0 5.69 2.65 6.81 6Z"
+    />
+  </svg>
+)
+
+/** Залитый силуэт пользователя на кнопке профиля */
+export const UserGlyph = () => (
+  <svg width="16" height="16" viewBox="12 12 16 16" fill="#181a19" aria-hidden>
+    <path d="M25.45 27.86c.93 0 1.7-.76 1.49-1.67a7.14 7.14 0 0 0-13.88 0c-.22.9.56 1.67 1.49 1.67h10.9Z" />
+    <circle cx="20" cy="15.75" r="3.18" />
+  </svg>
+)
+
+/** Сердце «Сохранить»: залитое красным, когда событие сохранено */
+export const HeartIcon = ({ filled }: { filled?: boolean }) => (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 14 14"
+    fill={filled ? 'var(--c-red)' : 'none'}
+    stroke={filled ? 'var(--c-red)' : 'var(--c-text)'}
+    strokeWidth="1.13"
+    strokeLinejoin="round"
+    aria-hidden
+  >
+    <path d="M4.25 2.02c-.85 0-1.7.27-2.34.92-1.3 1.3-1.26 3.32 0 4.62l4.13 4.32c.52.55 1.4.55 1.93 0l4.13-4.32c1.25-1.3 1.29-3.32 0-4.62a3.85 3.85 0 0 0-4.68 0L7 3.38l-.41-.44a3.27 3.27 0 0 0-2.34-.92Z" />
+  </svg>
+)
+
+/** Звёзды у вывода AI в карточке события */
+export const SparklesIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="var(--c-text)" aria-hidden>
+    <path d="m7.22 1.6 1.36 2.91a6 6 0 0 0 2.95 2.95l2.91 1.36-2.91 1.36a6 6 0 0 0-2.95 2.95l-1.36 2.91-1.36-2.91a6 6 0 0 0-2.95-2.95L0 8.82l2.91-1.36a6 6 0 0 0 2.95-2.95L7.22 1.6Z" />
+    <path d="m15.67 9.68.44.94a6 6 0 0 0 2.95 2.95l.94.44-.94.44a6 6 0 0 0-2.95 2.95l-.44.94-.44-.94a6 6 0 0 0-2.95-2.95l-.94-.44.94-.44a6 6 0 0 0 2.95-2.95l.44-.94Z" />
+    <path d="M14.85 0a5.8 5.8 0 0 0 2.77 2.77 5.8 5.8 0 0 0-2.77 2.77 5.8 5.8 0 0 0-2.77-2.77A5.8 5.8 0 0 0 14.85 0Z" />
+  </svg>
+)

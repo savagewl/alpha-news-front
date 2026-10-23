@@ -8,9 +8,14 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       proxy: {
+        // по умолчанию — стенд: его nginx сам снимает префикс /api перед бэкендом
         '/api': {
-          target: env.VITE_PROXY_TARGET || 'http://localhost:8000',
+          target: env.VITE_PROXY_TARGET || 'https://alfa-news.mooo.com',
           changeOrigin: true,
+          // бэкенд без nginx (uvicorn :8000) живёт без префикса
+          ...(env.VITE_PROXY_STRIP_API === '1' && {
+            rewrite: (path: string) => path.replace(/^\/api/, ''),
+          }),
         },
       },
     },

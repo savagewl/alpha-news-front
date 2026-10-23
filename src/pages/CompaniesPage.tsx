@@ -1,28 +1,54 @@
-import { useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Divider, Panel, StateCard, Tag } from '../components/ui'
+import { ApiError } from '../api/client'
+import { companyTitle, formatDecimal, place, plural } from '../api/companyFormat'
+import { useCompanies, useCreateCompany, useImportCsv } from '../api/companyHooks'
+import type { CsvDelimiter, CsvEncoding, ImportKind, ImportResult } from '../api/companyTypes'
+import {
+  Button,
+  Divider,
+  Pager,
+  Panel,
+  Skeleton,
+  StateCard,
+  Tag,
+  TextField,
+} from '../components/ui'
 import { cx } from '../components/cx'
 import { PageHead } from '../layout/AppLayout'
-import { companies, roles } from '../mocks/data'
+import { roles } from '../mocks/data'
 import { useWorkspace } from '../state/context'
+import a from './auth.module.css'
 import s from './pages.module.css'
 
-const ftsLine = (flag: boolean | null, countries: string[]) =>
-  flag === null
-    ? 'ФТС: нет данных'
-    : countries.length
-      ? `Импорт: ${countries.join(', ')}`
-      : 'ФТС: нет'
+const PAGE = 20
+
+/** Значение, которое меняется не чаще раза в delay мс — чтобы не слать запрос на каждую букву */
+function useDebounced<T>(value: T, delay = 300) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
+}
 
 export default function CompaniesPage() {
   const navigate = useNavigate()
   const { companyId, role, setCompany, setRole } = useWorkspace()
   const [query, setQuery] = useState('')
+  const [offset, setOffset] = useState(0)
+  const q = useDebounced(query.trim()).slice(0, 200)
+  const { data, isLoading, isError, error, refetch, isFetching } = useCompanies({
+    q: q || undefined,
+    limit: PAGE,
+    offset,
+  })
 
-  const q = query.trim().toLowerCase()
-  const visible = companies.filter(
-    (c) => !q || c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q),
-  )
+  const search = (value: string) => {
+    setQuery(value)
+    setOffset(0)
+  }
 
   return (
     <>
@@ -38,20 +64,40 @@ export default function CompaniesPage() {
             className={s.search}
             type="search"
             aria-label="Поиск компании"
-            placeholder="⌕ Поиск по названию или SYNTHETIC_U"
+            placeholder="⌕ Поиск по названию, ID, ОКВЭД или городу"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => search(e.target.value)}
           />
-          {visible.length === 0 && (
+          {isLoading && <Skeleton lines={4} />}
+          {isError && (
             <StateCard
-              kind="empty"
-              title="Компания не найдена"
-              text={`По запросу «${query}» нет совпадений. Ищите по названию или идентификатору вида U001.`}
-              action={<Button onClick={() => setQuery('')}>Сбросить поиск</Button>}
+              kind="error"
+              title="Не удалось загрузить компании"
+              text={error.message}
+              action={<Button onClick={() => refetch()}>Повторить</Button>}
             />
           )}
-          {visible.map((c) => {
+          {data &&
+            data.total === 0 &&
+            (q ? (
+              <StateCard
+                kind="empty"
+                title="Компания не найдена"
+                text={`По запросу «${q}» нет совпадений среди ваших компаний.`}
+                action={<Button onClick={() => search('')}>Сбросить поиск</Button>}
+              />
+            ) : (
+              <StateCard
+                kind="insufficient"
+                tag="Нет компаний"
+                title="У вас пока нет компаний"
+                text="Создайте компанию или загрузите CSV юридических лиц справа. Ещё вас может добавить участник компании — для этого передайте ему свой ID из меню профиля."
+              />
+            ))}
+          {data?.items.map((c) => {
             const selected = c.id === companyId
+            const revenue = formatDecimal(c.annual_revenue)
+            const where = place(c)
             return (
               <button
                 key={c.id}
@@ -61,22 +107,35 @@ export default function CompaniesPage() {
                 onClick={() => setCompany(c.id)}
               >
                 <span className={s.companyTop}>
-                  <Tag variant={selected ? 'red' : 'neutral'}>{c.id}</Tag>
+                  <span className={s.row}>
+                    <Tag variant={selected ? 'red' : 'neutral'}>{c.id}</Tag>
+                    {c.is_placeholder && <Tag>Заглушка · CSV не загружен</Tag>}
+                  </span>
                   <Tag>{selected ? '✓ Выбрана' : 'Выбрать →'}</Tag>
                 </span>
-                <span className="t-h3">{c.name}</span>
+                <span className="t-h3">{companyTitle(c)}</span>
                 <span className="t-15">
-                  {c.industry} · {c.okved} · {c.revenue}
+                  {[
+                    c.okved_name,
+                    c.okved_code && `ОКВЭД ${c.okved_code}`,
+                    revenue && `Выручка ${revenue}`,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ') || <span className="c-muted">Атрибуты не загружены</span>}
                 </span>
-                <span className="t-12 c-muted">
-                  {c.city}
-                  {c.region !== c.city && ` / ${c.region}`} · {c.group}
-                </span>
-                <span className="t-12">{c.products.join(' / ')}</span>
-                <span className="t-12 c-muted">{ftsLine(c.fts.flag, c.fts.countries)}</span>
+                {(where || c.group_id) && (
+                  <span className="t-12 c-muted">
+                    {[where, c.group_id && `Группа ${c.group_id}`].filter(Boolean).join(' · ')}
+                  </span>
+                )}
               </button>
             )
           })}
+          {data && (
+            <div style={{ opacity: isFetching ? 0.6 : 1 }}>
+              <Pager offset={offset} limit={PAGE} total={data.total} onChange={setOffset} />
+            </div>
+          )}
         </div>
 
         <div className={s.aside}>
@@ -101,12 +160,224 @@ export default function CompaniesPage() {
                 </button>
               ))}
             </div>
-            <Button variant="primary" onClick={() => navigate('/digest')}>
+            <Button variant="primary" disabled={!companyId} onClick={() => navigate('/digest')}>
               Открыть сводку →
             </Button>
           </Panel>
+          <CsvImportPanel />
+          <CreateCompanyPanel onCreated={setCompany} />
         </div>
       </div>
     </>
+  )
+}
+
+const importKinds: { kind: ImportKind; label: string; hint: string }[] = [
+  {
+    kind: 'companies',
+    label: 'Юрлица',
+    hint: 'Все колонки df_Uid_data_hack.csv. Обновление по SYNTHETIC_U, новые компании станут вашими.',
+  },
+  {
+    kind: 'persons',
+    label: 'Физлица',
+    hint: 'Колонки SYNTHETIC_F, SYNTHETIC_U, CITY_NAME, RC_NAME. Компании из файла должны быть вашими.',
+  },
+  {
+    kind: 'payments',
+    label: 'Платежи',
+    hint: 'Колонки PAYER, BENEFICIARY, PAY_AMT, PAY_CNT. В каждой строке одна из сторон — ваша компания.',
+  },
+]
+
+const encodings: { value: CsvEncoding; label: string }[] = [
+  { value: 'utf-8-sig', label: 'UTF-8' },
+  { value: 'cp1251', label: 'Windows-1251' },
+]
+
+const delimiters: { value: CsvDelimiter; label: string }[] = [
+  { value: null, label: 'Авто' },
+  { value: ',', label: ',' },
+  { value: ';', label: ';' },
+  { value: '\t', label: 'Tab' },
+]
+
+const importErrors: Record<number, string> = {
+  401: 'Сессия истекла, войдите заново',
+  403: 'В файле есть компании, к которым у вас нет доступа',
+  413: 'Файл слишком большой',
+  503: 'Сервис импорта временно недоступен, попробуйте позже',
+}
+
+function CsvImportPanel() {
+  const [kind, setKind] = useState<ImportKind>('companies')
+  const [encoding, setEncoding] = useState<CsvEncoding>('utf-8-sig')
+  const [delimiter, setDelimiter] = useState<CsvDelimiter>(null)
+  const [file, setFile] = useState<File | null>(null)
+  const [inputKey, setInputKey] = useState(0)
+  const [result, setResult] = useState<ImportResult | null>(null)
+  const upload = useImportCsv()
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    if (!file) return
+    setResult(null)
+    upload.mutate(
+      { kind, file, encoding, delimiter },
+      {
+        onSuccess: (r) => {
+          setResult(r)
+          setFile(null)
+          setInputKey((k) => k + 1)
+        },
+      },
+    )
+  }
+
+  const err = upload.error
+  const errText = err && ((err instanceof ApiError && importErrors[err.status]) || err.message)
+
+  return (
+    <Panel>
+      <h2 className="t-h2">Загрузка CSV</h2>
+      <form className={s.col} style={{ gap: 12 }} onSubmit={onSubmit}>
+        <div className={s.row} role="radiogroup" aria-label="Что загружаем">
+          {importKinds.map((k) => (
+            <Button key={k.kind} pressed={kind === k.kind} onClick={() => setKind(k.kind)}>
+              {k.label}
+            </Button>
+          ))}
+        </div>
+        <p className="t-12 c-muted">{importKinds.find((k) => k.kind === kind)?.hint}</p>
+        <input
+          key={inputKey}
+          type="file"
+          accept=".csv,text/csv"
+          aria-label="CSV-файл"
+          className="t-13"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        />
+        <p className="t-12 c-muted">Кодировка</p>
+        <div className={s.row}>
+          {encodings.map((o) => (
+            <Button
+              key={o.value}
+              pressed={encoding === o.value}
+              onClick={() => setEncoding(o.value)}
+            >
+              {o.label}
+            </Button>
+          ))}
+        </div>
+        <p className="t-12 c-muted">Разделитель</p>
+        <div className={s.row}>
+          {delimiters.map((o) => (
+            <Button
+              key={o.label}
+              pressed={delimiter === o.value}
+              onClick={() => setDelimiter(o.value)}
+            >
+              {o.label}
+            </Button>
+          ))}
+        </div>
+        {errText && (
+          <p className={a.alert} role="alert">
+            {errText}
+          </p>
+        )}
+        <Button variant="primary" type="submit" disabled={!file || upload.isPending}>
+          {upload.isPending ? 'Загружаем…' : 'Загрузить →'}
+        </Button>
+      </form>
+      {result && <ImportSummary result={result} />}
+      <p className="t-12 c-muted">
+        Порядок: сначала юрлица, затем физлица и платежи. Повторная загрузка того же файла не
+        дублирует данные.
+      </p>
+    </Panel>
+  )
+}
+
+function ImportSummary({ result }: { result: ImportResult }) {
+  const { counts } = result
+  const lines = [
+    ['Компании', counts.companies],
+    ['Заглушки контрагентов', counts.placeholder_companies],
+    ['Физлица', counts.persons],
+    ['Связи', counts.links],
+    ['Платёжные строки', counts.payments],
+  ].filter(([, n]) => n) as [string, number][]
+  return (
+    <div className={s.col} style={{ gap: 8 }} role="status">
+      <Tag variant="green">
+        {result.reused ? 'Файл уже загружался — данные не продублированы' : 'Загружено'}
+      </Tag>
+      <p className="t-13">
+        {result.filename} · {result.row_count}{' '}
+        {plural(result.row_count, 'строка', 'строки', 'строк')}
+      </p>
+      {lines.map(([label, n]) => (
+        <p key={label} className="t-12">
+          {label}: {n}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+function CreateCompanyPanel({ onCreated }: { onCreated: (id: string) => void }) {
+  const [name, setName] = useState('')
+  const [id, setId] = useState('')
+  const create = useCreateCompany()
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    if (!name.trim()) return
+    create.mutate(
+      { name: name.trim(), id: id.trim() || null },
+      {
+        onSuccess: (c) => {
+          setName('')
+          setId('')
+          onCreated(c.id)
+        },
+      },
+    )
+  }
+
+  const err = create.error
+  const errText =
+    err &&
+    (err instanceof ApiError && err.status === 409
+      ? 'Компания с таким ID уже существует'
+      : err.message)
+
+  return (
+    <Panel>
+      <h2 className="t-h2">Создать компанию</h2>
+      <form className={s.col} style={{ gap: 12 }} onSubmit={onSubmit}>
+        <TextField
+          label="Название"
+          placeholder="ООО «Вектор»"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <TextField
+          label="ID (SYNTHETIC_U), необязательно"
+          placeholder="Например, 001 — чтобы потом загрузить CSV"
+          value={id}
+          onChange={(e) => setId(e.target.value)}
+        />
+        {errText && (
+          <p className={a.alert} role="alert">
+            {errText}
+          </p>
+        )}
+        <Button variant="primary" type="submit" disabled={!name.trim() || create.isPending}>
+          {create.isPending ? 'Создаём…' : 'Создать →'}
+        </Button>
+      </form>
+    </Panel>
   )
 }

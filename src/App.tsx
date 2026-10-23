@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, GuestOnly, RequireAuth } from './auth/AuthProvider'
 import AppLayout from './layout/AppLayout'
 import AuthLayout from './layout/AuthLayout'
+import ArticlePage from './pages/ArticlePage'
 import CompaniesPage from './pages/CompaniesPage'
 import DigestPage from './pages/DigestPage'
 import EventPage from './pages/EventPage'
@@ -43,6 +44,7 @@ export default function App() {
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/digest" element={<DigestPage />} />
                   <Route path="/events/:eventId" element={<EventPage />} />
+                  <Route path="/articles/:articleId" element={<ArticlePage />} />
                   <Route path="/sources/:eventId?" element={<SourcesPage />} />
                   <Route path="/trace/:eventId?" element={<TracePage />} />
                   <Route path="/saved" element={<SavedPage />} />

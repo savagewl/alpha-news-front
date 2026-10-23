@@ -11,14 +11,7 @@ import type {
   TraceStep,
 } from '../api/newsTypes'
 import { findCompany, roleFocus, shortRole } from './data'
-import {
-  digestHeroes,
-  events,
-  findAnalytics,
-  incomingEvents,
-  interpretations,
-  presetAnswer,
-} from './news'
+import { digestHeroes, events, findAnalytics, interpretations, presetAnswer } from './news'
 
 const wait = (ms = 450) => new Promise((r) => setTimeout(r, ms))
 
@@ -28,11 +21,6 @@ export function plural(n: number, one: string, few: string, many: string) {
   const word = d === 1 && dd !== 11 ? one : d >= 2 && d <= 4 && (dd < 12 || dd > 14) ? few : many
   return `${n} ${word}`
 }
-
-/** Новости, «пришедшие» после открытия сводки. Живут до перезагрузки страницы */
-const delivered = new Set<string>()
-
-const allEvents = () => [...incomingEvents.filter((e) => delivered.has(e.id)), ...events]
 
 /** Роль не меняет набор данных, только порядок: темы роли поднимаются выше */
 function rankForRole(list: NewsEvent[], role: string) {
@@ -50,24 +38,15 @@ function rankForRole(list: NewsEvent[], role: string) {
 }
 
 export function findEvent(id: string) {
-  return allEvents().find((e) => e.id === id)
+  return events.find((e) => e.id === id)
 }
 
 export const newsMock = {
   async digest(companyId: string, role: string): Promise<Digest> {
     await wait()
     const hero = digestHeroes[companyId] ?? digestHeroes.U001
-    const own = allEvents().filter((e) => e.companyId === companyId)
+    const own = events.filter((e) => e.companyId === companyId)
     return { ...hero, companyId, role, events: rankForRole(own, role) }
-  },
-
-  /** Забрать следующую ещё не показанную новость; null — новых нет */
-  async pullNews(companyId: string): Promise<NewsEvent | null> {
-    await wait(900)
-    const next = incomingEvents.find((e) => e.companyId === companyId && !delivered.has(e.id))
-    if (!next) return null
-    delivered.add(next.id)
-    return next
   },
 
   async interpretation(eventId: string): Promise<Interpretation> {

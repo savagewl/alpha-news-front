@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/context'
-import { AuthError } from '../auth/mockAuth'
-import { Button, Divider, Panel, Tag, TextField } from '../components/ui'
+import { AuthError } from '../auth/authApi'
+import { Button, Panel, Tag, TextField } from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
-import { companies, roles } from '../mocks/data'
+import { roles } from '../mocks/data'
 import a from './auth.module.css'
 import s from './pages.module.css'
 
@@ -13,7 +13,6 @@ interface FormState {
   email: string
   password: string
   repeat: string
-  companyId: string
   role: string
   consent: boolean
 }
@@ -25,7 +24,6 @@ const empty: FormState = {
   email: '',
   password: '',
   repeat: '',
-  companyId: '',
   role: '',
   consent: false,
 }
@@ -36,7 +34,6 @@ function validate(f: FormState): Errors {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) e.email = 'Проверьте формат email'
   if (f.password.length < 8) e.password = 'Не менее 8 символов'
   if (f.repeat !== f.password) e.repeat = 'Пароли не совпадают'
-  if (!f.companyId) e.companyId = 'Выберите компанию'
   if (!f.role) e.role = 'Выберите роль'
   if (!f.consent) e.consent = 'Нужно подтвердить доступ к интернет-банку'
   return e
@@ -63,8 +60,8 @@ export default function RegisterPage() {
     setPending(true)
     setServerError('')
     try {
-      const { name, email, password, companyId, role } = form
-      await register({ name, email, password, companyId, role })
+      const { name, email, password, role } = form
+      await register({ name, email, password, role })
     } catch (err) {
       setServerError(
         err instanceof AuthError
@@ -128,30 +125,11 @@ export default function RegisterPage() {
           </Panel>
 
           <Panel>
-            <h2 className="t-h2">Компания и роль</h2>
-            <p className="t-12 c-muted">Компания · 6 профилей из набора данных кейса</p>
-            <div className={a.options}>
-              {companies.map((c) => {
-                const active = form.companyId === c.id
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    className={`${a.option} ${active ? a.optionActive : ''}`}
-                    onClick={() => set('companyId', c.id)}
-                  >
-                    {active ? '✓ ' : ''}
-                    {c.name}
-                    <span className={a.optionHint}>
-                      ID {c.id} · {c.city}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-            {errors.companyId && <p className="t-12 c-red">{errors.companyId}</p>}
-            <Divider />
-            <p className="t-12 c-muted">Роль</p>
+            <h2 className="t-h2">Роль</h2>
+            <p className="t-12 c-muted">
+              Компанию добавите после регистрации: создадите её, загрузите CSV или вас пригласит
+              участник компании.
+            </p>
             <div className={a.options}>
               {roles.map((r) => {
                 const active = form.role === r
@@ -180,8 +158,8 @@ export default function RegisterPage() {
                 checked={form.consent}
                 onChange={(e) => set('consent', e.target.checked)}
               />
-              Подтверждаю, что имею доступ к интернет-банку выбранной компании, и согласен на
-              обработку данных
+              Подтверждаю, что имею доступ к интернет-банку своей компании, и согласен на обработку
+              данных
             </label>
             {errors.consent && <p className="t-12 c-red">{errors.consent}</p>}
             {serverError && (
@@ -206,10 +184,10 @@ export default function RegisterPage() {
         <div className={s.aside}>
           <Panel>
             <h2 className="t-h2">Как устроен доступ</h2>
-            <Tag variant="red">company_id → user_id → role</Tag>
+            <Tag variant="red">user_id → компании → role</Tag>
             <p className="t-13">
-              Компания задаёт границу данных, пользователь — принадлежность сессии, роль — порядок
-              событий и вопросы. Смена роли не открывает чужую компанию.
+              Пользователь видит только компании, в которых состоит; участник может пригласить
+              коллегу по ID. Роль задаёт порядок событий и вопросы и не открывает чужую компанию.
             </p>
             <p className="t-13">
               AI объясняет события, но не создаёт и не исполняет платежи — read-only по умолчанию.

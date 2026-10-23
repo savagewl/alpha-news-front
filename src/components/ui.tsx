@@ -298,3 +298,32 @@ export function StateCard({
     </section>
   )
 }
+
+/** Пагинация limit/offset: «21–40 из 57» и стрелки. Скрыта, если всё помещается на страницу */
+export function Pager({
+  offset,
+  limit,
+  total,
+  onChange,
+}: {
+  offset: number
+  limit: number
+  total: number
+  onChange: (offset: number) => void
+}) {
+  if (total <= limit && offset === 0) return null
+  const last = Math.min(offset + limit, total)
+  return (
+    <div className={s.pager}>
+      <span className="t-12 c-muted">
+        {total ? offset + 1 : 0}–{last} из {total}
+      </span>
+      <Button disabled={offset === 0} onClick={() => onChange(Math.max(0, offset - limit))}>
+        ← Назад
+      </Button>
+      <Button disabled={last >= total} onClick={() => onChange(offset + limit)}>
+        Дальше →
+      </Button>
+    </div>
+  )
+}

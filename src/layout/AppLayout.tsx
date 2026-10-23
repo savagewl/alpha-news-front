@@ -1,12 +1,16 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { companyTitle, formatDecimal, place } from '../api/companyFormat'
+import { useCompanies, useCompany } from '../api/companyHooks'
+import { ApiError } from '../api/client'
 import { useAuth } from '../auth/context'
-import { ChartIcon, Icon, UserIcon, type IconName } from '../components/Icons'
+import { AlfaLogo, Icon, UserGlyph, type IconName } from '../components/Icons'
 import { Divider, Dropdown, MenuItem } from '../components/ui'
 import { cx } from '../components/cx'
-import { companies, findCompany, roles } from '../mocks/data'
+import { roles } from '../mocks/data'
 import { useWorkspace } from '../state/context'
 import s from './AppLayout.module.css'
+import { ChangePasswordDialog } from './ChangePasswordDialog'
 
 const bankSections = ['Главная', 'Счета и платежи', 'Операции', 'Кредиты', 'Валютный контроль']
 
@@ -19,7 +23,7 @@ interface NavEntry {
 }
 
 const analyticsNav: NavEntry[] = [
-  { label: 'Сводка', to: '/digest', icon: 'chart', also: ['/events'] },
+  { label: 'Сводка', to: '/digest', icon: 'chart', also: ['/events', '/articles'] },
   { label: 'Компании', to: '/companies', icon: 'building' },
   { label: 'Профиль компании', to: '/profile', icon: 'idCard' },
   { label: 'Сохранённое', to: '/saved', icon: 'bookmark' },
@@ -35,35 +39,78 @@ function useIsActive() {
     [e.to, ...(e.also ?? [])].some((p) => pathname === p || pathname.startsWith(`${p}/`))
 }
 
+/** Компании пользователя для переключателя — первых 100 хватает, полный список на «Компаниях» */
+const switcherQuery = { limit: 100, offset: 0 }
+
+/**
+ * Держит выбранную компанию в пределах доступных: пустой выбор или компания, к которой
+ * больше нет доступа, заменяется первой из списка.
+ */
+function useCompanyGuard() {
+  const { companyId, setCompany } = useWorkspace()
+  const list = useCompanies(switcherQuery)
+  const current = useCompany(companyId)
+  const lost = current.error instanceof ApiError && [403, 404].includes(current.error.status)
+  const first = list.data?.items[0]?.id ?? ''
+  useEffect(() => {
+    if (!list.data) return
+    if ((!companyId || lost) && first !== companyId) setCompany(first)
+  }, [list.data, companyId, lost, first, setCompany])
+}
+
 function CompanySwitcher({ compact }: { compact?: boolean }) {
   const { companyId, setCompany } = useWorkspace()
-  const company = findCompany(companyId)
+  const navigate = useNavigate()
+  const list = useCompanies(switcherQuery)
+  const items = list.data?.items ?? []
+  const company = items.find((c) => c.id === companyId)
+  const title = company
+    ? companyTitle(company)
+    : list.isLoading
+      ? 'Загрузка…'
+      : 'Компания не выбрана'
   return (
     <Dropdown
       label="Сменить компанию"
       className={s.company}
       trigger={
         <span className={s.companyTrigger}>
-          {compact ? `${company.id} · ${company.shortName}` : company.shortName}
-          <Icon name="chevronDown" size={14} />
+          <span className={s.triggerText}>
+            {compact && company ? `${company.id} · ${title}` : title}
+          </span>
+          <Icon name="chevronDown" size={14} color="var(--c-hint)" />
         </span>
       }
     >
-      {(close) =>
-        companies.map((c) => (
+      {(close) => (
+        <>
+          {items.map((c) => (
+            <MenuItem
+              key={c.id}
+              active={c.id === companyId}
+              hint={[c.id, c.okved_name, formatDecimal(c.annual_revenue)]
+                .filter(Boolean)
+                .join(' · ')}
+              onSelect={() => {
+                setCompany(c.id)
+                close()
+              }}
+            >
+              {companyTitle(c)}
+            </MenuItem>
+          ))}
+          {items.length === 0 && <p className={s.menuNote}>У вас пока нет компаний.</p>}
+          <Divider />
           <MenuItem
-            key={c.id}
-            active={c.id === companyId}
-            hint={`${c.id} · ${c.industry} · ${c.revenue}`}
             onSelect={() => {
-              setCompany(c.id)
               close()
+              navigate('/companies')
             }}
           >
-            {c.name}
+            Все компании и загрузка CSV →
           </MenuItem>
-        ))
-      }
+        </>
+      )}
     </Dropdown>
   )
 }
@@ -77,7 +124,7 @@ export function RoleSwitcher() {
       trigger={
         <span className={s.roleTrigger}>
           {role}
-          <Icon name="chevronDown" size={12} />
+          <Icon name="chevronDown" size={14} color="var(--c-hint)" />
         </span>
       }
     >
@@ -107,34 +154,56 @@ export function RoleSwitcher() {
 function UserMenu() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const [changing, setChanging] = useState(false)
   return (
-    <Dropdown label="Профиль пользователя" align="right" trigger={<UserIcon />}>
-      {(close) => (
-        <>
-          <div className={s.userCard}>
-            <span className="t-13 t-semibold">{user?.name}</span>
-            <span className="t-12 c-muted">{user?.email}</span>
-          </div>
-          <Divider />
-          <MenuItem
-            onSelect={async () => {
-              close()
-              await logout()
-              navigate('/login', { replace: true })
-            }}
-          >
-            Выйти
-          </MenuItem>
-        </>
-      )}
-    </Dropdown>
+    <>
+      <Dropdown
+        label="Профиль пользователя"
+        align="right"
+        trigger={
+          <span className={s.userTrigger}>
+            <UserGlyph />
+          </span>
+        }
+      >
+        {(close) => (
+          <>
+            <div className={s.userCard}>
+              <span className="t-13 t-semibold">{user?.name}</span>
+              <span className="t-12 c-muted">{user?.email}</span>
+              <span className="t-12 c-muted">ID для приглашения в компанию: {user?.id}</span>
+            </div>
+            <Divider />
+            <MenuItem
+              onSelect={() => {
+                close()
+                setChanging(true)
+              }}
+            >
+              Сменить пароль
+            </MenuItem>
+            <MenuItem
+              onSelect={async () => {
+                close()
+                await logout()
+                navigate('/login', { replace: true })
+              }}
+            >
+              Выйти
+            </MenuItem>
+          </>
+        )}
+      </Dropdown>
+      {changing && <ChangePasswordDialog onClose={() => setChanging(false)} />}
+    </>
   )
 }
 
 function Header() {
   return (
-    <header className={s.header}>
-      <Link to="/" className={s.logo}>
+    <header className={s.topbar}>
+      {/* На десктопе знак банка живёт в сайдбаре, в шапке — только без сайдбара */}
+      <Link to="/" className={cx(s.logo, s.topbarLogo)}>
         Альфа-Бизнес
       </Link>
       <div className={s.headerCompany}>
@@ -142,7 +211,7 @@ function Header() {
       </div>
       {/* Постоянная точка входа в сервис на главном экране (критерий 09) */}
       <NavLink to="/digest" className={s.entry}>
-        <ChartIcon />
+        <Icon name="chart" size={18} strokeWidth={2} />
         Новостная аналитика
       </NavLink>
       <Link to="/map" className={s.help}>
@@ -157,34 +226,53 @@ function Header() {
 
 function Sidebar() {
   const isActive = useIsActive()
+  const { pathname } = useLocation()
   const { saved } = useWorkspace()
+  const home = pathname === '/'
   return (
     <nav className={s.nav} aria-label="Разделы">
-      <span className={s.navCaption}>ИНТЕРНЕТ-БАНК</span>
-      {bankSections.map((label) =>
-        label === 'Главная' ? (
-          <Link key={label} to="/" className={s.bankItem}>
-            {label}
-          </Link>
-        ) : (
-          <span key={label} className={cx(s.bankItem, s.bankItemStub)}>
-            {label}
-          </span>
-        ),
-      )}
-      <Divider />
-      <span className={s.navCaption}>АЛЬФА БУДУЩЕЕ</span>
-      {analyticsNav.map((e) => (
-        <Link
-          key={e.to}
-          to={e.to}
-          className={cx(s.navItem, isActive(e) && s.navItemActive)}
-          aria-current={isActive(e) ? 'page' : undefined}
-        >
-          {e.label}
-          {e.to === '/saved' && saved.length > 0 && <span className={s.count}>{saved.length}</span>}
-        </Link>
-      ))}
+      <Link to="/" className={s.navLogo} aria-label="Альфа-Бизнес, главная">
+        <AlfaLogo />
+      </Link>
+      <div className={s.navGroup}>
+        <span className={s.navCaption}>Интернет-банк</span>
+        <div className={s.navList}>
+          {bankSections.map((label) =>
+            label === 'Главная' ? (
+              <Link
+                key={label}
+                to="/"
+                className={cx(s.navItem, home && s.navItemActive)}
+                aria-current={home ? 'page' : undefined}
+              >
+                {label}
+              </Link>
+            ) : (
+              <span key={label} className={cx(s.navItem, s.navItemStub)}>
+                {label}
+              </span>
+            ),
+          )}
+        </div>
+      </div>
+      <div className={s.navGroup}>
+        <span className={s.navCaption}>Альфа Будущее</span>
+        <div className={s.navList}>
+          {analyticsNav.map((e) => (
+            <Link
+              key={e.to}
+              to={e.to}
+              className={cx(s.navItem, isActive(e) && s.navItemActive)}
+              aria-current={isActive(e) ? 'page' : undefined}
+            >
+              {e.label}
+              {e.to === '/saved' && saved.length > 0 && (
+                <span className={s.count}>{saved.length}</span>
+              )}
+            </Link>
+          ))}
+        </div>
+      </div>
     </nav>
   )
 }
@@ -292,17 +380,32 @@ function TabBar() {
   )
 }
 
+/**
+ * Новая страница открывается сверху, а не на прокрутке предыдущей. Ссылки с якорем
+ * (например «Первоисточники →» на #sources) прокручивает сама страница.
+ */
+function useScrollToTop() {
+  const { pathname, hash } = useLocation()
+  useEffect(() => {
+    if (!hash) window.scrollTo(0, 0)
+  }, [pathname, hash])
+}
+
 export default function AppLayout() {
+  useCompanyGuard()
+  useScrollToTop()
   return (
     <>
-      <Header />
       <div className={s.workspace}>
         <Sidebar />
         <Rail />
-        <main className={s.content}>
-          <Outlet />
-          <Footer />
-        </main>
+        <div className={s.main}>
+          <Header />
+          <main className={s.content}>
+            <Outlet />
+            <Footer />
+          </main>
+        </div>
       </div>
       <TabBar />
     </>
@@ -323,20 +426,24 @@ export function Footer() {
 /** Мобильный: компания и роль переезжают из шапки в карточку под заголовком */
 function MobileContext() {
   const { companyId } = useWorkspace()
-  const company = findCompany(companyId)
+  const { data: company } = useCompany(companyId)
   return (
     <div className={s.mobileContext}>
       <CompanySwitcher />
-      <span className="t-12 c-muted">
-        {company.id} · {company.revenue} · {company.city}
-      </span>
+      {company && (
+        <span className="t-12 c-muted">
+          {[company.id, formatDecimal(company.annual_revenue), place(company)]
+            .filter(Boolean)
+            .join(' · ')}
+        </span>
+      )}
       <Divider />
       <RoleSwitcher />
     </div>
   )
 }
 
-/** Хлебные крошки, строка «АЛЬФА БУДУЩЕЕ / роль» и заголовок страницы */
+/** Хлебные крошки с переключателем роли и заголовок страницы */
 export function PageHead({
   crumb,
   title,
@@ -359,16 +466,15 @@ export function PageHead({
   const workspacePage = tag === undefined
   return (
     <>
-      <p className={s.crumbs}>{crumbs}</p>
       <div className={s.context}>
-        <span className={s.wordmark}>АЛЬФА БУДУЩЕЕ</span>
+        <p className={s.crumbs}>{crumbs}</p>
         <span className={cx(workspacePage && s.desktopOnly)}>
           {workspacePage ? <RoleSwitcher /> : tag}
         </span>
       </div>
       <div className={s.title}>
-        <h1 className="t-h1">{title}</h1>
-        <p className="t-15 c-muted">{subtitle}</p>
+        <h1 className={s.titleText}>{title}</h1>
+        {subtitle && <p className={s.subtitle}>{subtitle}</p>}
       </div>
       {workspacePage && <MobileContext />}
       {children && <div className={s.headExtra}>{children}</div>}

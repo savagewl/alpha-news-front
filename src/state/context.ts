@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react'
 
 export interface WorkspaceData {
+  /** Выбранная компания с бэка; пустая строка — компаний у пользователя пока нет */
   companyId: string
   role: string
   saved: string[]
@@ -25,4 +26,15 @@ export function useWorkspace() {
   const ctx = useContext(WorkspaceContext)
   if (!ctx) throw new Error('useWorkspace используется вне WorkspaceProvider')
   return ctx
+}
+
+export const workspaceKey = (userId: string) => `alpha-news:workspace:${userId}`
+
+/** Записать часть контекста до входа — например, роль, выбранную при регистрации */
+export function seedWorkspace(userId: string, data: Partial<WorkspaceData>) {
+  try {
+    localStorage.setItem(workspaceKey(userId), JSON.stringify(data))
+  } catch {
+    // хранилище недоступно — возьмутся значения по умолчанию
+  }
 }

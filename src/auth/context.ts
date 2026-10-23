@@ -1,12 +1,12 @@
 import { createContext, useContext } from 'react'
-import type { RegisterInput, User } from './mockAuth'
+import type { RegisterInput, User } from './authApi'
 
 export interface AuthState {
   user: User | null
   /** true, пока проверяем сохранённую сессию */
   loading: boolean
   login: (email: string, password: string) => Promise<User>
-  register: (input: RegisterInput) => Promise<User>
+  register: (input: RegisterInput & { role: string }) => Promise<User>
   logout: () => Promise<void>
 }
 

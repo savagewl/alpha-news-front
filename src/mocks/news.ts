@@ -432,50 +432,6 @@ export const events: NewsEvent[] = [
   ]),
 ]
 
-/** Новости, которые приходят по кнопке «Подгрузить новую новость» — проверка на ранее не показанных событиях */
-export const incomingEvents: NewsEvent[] = [
-  ...seed('U001', [
-    {
-      code: 'N1',
-      kind: 'risk',
-      topic: 'Инфляция',
-      title: 'Недельная инфляция замедлилась, базовая — нет',
-      text: 'Не закладывайте снижение ставки в бюджет CAPEX раньше подтверждения тренда.',
-      relevance: 'Средняя',
-      relevanceReason: 'Кредиты + роль CFO [P1]',
-      sourceCode: 'N1',
-      sourceTitle: 'Новостная лента',
-      bankRef: 'B2',
-    },
-  ]),
-  ...seed('U002', [
-    {
-      code: 'N2',
-      kind: 'opportunity',
-      topic: 'Логистика',
-      title: 'Тарифы на ж/д-импорт снижены',
-      text: 'Сравните стоимость мультимодального маршрута с автоплечом. Применимость к грузам U002 не проверена.',
-      relevance: 'Средняя',
-      relevanceReason: 'ФТС Китай [P6]',
-      sourceCode: 'N2',
-      sourceTitle: 'Новостная лента',
-    },
-  ]),
-  ...seed('U003', [
-    {
-      code: 'N3',
-      kind: 'risk',
-      topic: 'Регулирование',
-      title: 'Изменения НДПИ для драгметаллов',
-      text: 'Проверьте чувствительность налоговой нагрузки к цене золота. Параметры изменений не подтверждены.',
-      relevance: 'Высокая',
-      relevanceReason: 'Добыча драгметаллов [P7]',
-      sourceCode: 'N3',
-      sourceTitle: 'Новостная лента',
-    },
-  ]),
-]
-
 export interface DetailedInterpretation {
   title: string
   main: string

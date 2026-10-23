@@ -342,3 +342,14 @@
     height: 58px;
   }
 }
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.pager > :first-child {
+  margin-right: auto;
+}

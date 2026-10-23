@@ -12,10 +12,38 @@ export class ApiError extends Error {
   }
 }
 
+// JWT из POST /user/login живёт 24 часа; храним в localStorage, чтобы сессия переживала перезагрузку
+const TOKEN_KEY = 'alpha-news:token'
+
+export const tokenStorage = {
+  get(): string | null {
+    try {
+      return localStorage.getItem(TOKEN_KEY)
+    } catch {
+      return null
+    }
+  },
+  set(token: string | null) {
+    try {
+      if (token === null) localStorage.removeItem(TOKEN_KEY)
+      else localStorage.setItem(TOKEN_KEY, token)
+    } catch {
+      // хранилище недоступно (приватный режим) — сессия проживёт до перезагрузки
+    }
+  },
+}
+
+/** Вызывается, когда бэк отверг токен (истёк или отозван после смены пароля) */
+let onUnauthorized: (() => void) | null = null
+export const setUnauthorizedHandler = (fn: (() => void) | null) => {
+  onUnauthorized = fn
+}
+
 type Query = Record<string, string | number | boolean | undefined | null>
 
 interface RequestOptions extends Omit<RequestInit, 'body'> {
   query?: Query
+  /** Объект уходит JSON, FormData — multipart (загрузка CSV) */
   body?: unknown
 }
 
@@ -24,30 +52,66 @@ function buildUrl(path: string, query?: Query) {
   if (!query) return url
   const params = new URLSearchParams()
   for (const [k, v] of Object.entries(query)) {
-    if (v !== undefined && v !== null) params.set(k, String(v))
+    if (v !== undefined && v !== null && v !== '') params.set(k, String(v))
   }
   const qs = params.toString()
   return qs ? `${url}?${qs}` : url
 }
 
+interface CsvRowError {
+  row?: number
+  message?: string
+  columns?: string[]
+}
+
+/**
+ * detail бывает строкой, списком ошибок валидации FastAPI (422)
+ * или объектом импорта CSV: { code, errors: [{ row, message, columns }] }
+ */
+function errorMessage(data: unknown, fallback: string): string {
+  if (!data || typeof data !== 'object' || !('detail' in data)) return fallback
+  const { detail } = data
+  if (Array.isArray(detail))
+    return detail
+      .map((d) => (d && typeof d === 'object' && 'msg' in d ? String(d.msg) : String(d)))
+      .join('; ')
+  if (detail && typeof detail === 'object') {
+    const errors = 'errors' in detail && Array.isArray(detail.errors) ? detail.errors : []
+    if (errors.length)
+      return (errors as CsvRowError[])
+        .slice(0, 5)
+        .map(
+          (e) =>
+            `${e.row !== undefined ? `Строка ${e.row}: ` : ''}${e.message ?? 'ошибка'}` +
+            (e.columns?.length ? ` — ${e.columns.join(', ')}` : ''),
+        )
+        .join('; ')
+    return 'code' in detail ? String(detail.code) : fallback
+  }
+  return String(detail)
+}
+
 export async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const { query, body, headers, ...rest } = opts
+  const token = tokenStorage.get()
+  const isForm = body instanceof FormData
   const res = await fetch(buildUrl(path, query), {
     ...rest,
     headers: {
       Accept: 'application/json',
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      ...(body !== undefined && !isForm ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
   })
 
   const text = await res.text()
   const data = text ? safeJson(text) : undefined
   if (!res.ok) {
-    const detail =
-      data && typeof data === 'object' && 'detail' in data ? String(data.detail) : res.statusText
-    throw new ApiError(res.status, detail, data)
+    // 401 без токена — это неверный пароль при входе, а не протухшая сессия
+    if (res.status === 401 && token) onUnauthorized?.()
+    throw new ApiError(res.status, errorMessage(data, res.statusText), data)
   }
   return data as T
 }
@@ -63,8 +127,8 @@ function safeJson(text: string): unknown {
 export const api = {
   get: <T>(path: string, query?: Query, signal?: AbortSignal) =>
     request<T>(path, { method: 'GET', query, signal }),
-  post: <T>(path: string, body?: unknown, signal?: AbortSignal) =>
-    request<T>(path, { method: 'POST', body, signal }),
+  post: <T>(path: string, body?: unknown, query?: Query) =>
+    request<T>(path, { method: 'POST', body, query }),
   put: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 }
