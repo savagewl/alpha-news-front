@@ -139,14 +139,16 @@ export function FeedCard({
         </div>
       )}
 
-      {ready && (!!item.risks?.length || !!item.opportunities?.length) && (
-        <div className={cx(s.impact, 'appear')}>
-          {!!item.risks?.length && <ImpactList title="△ Риски" items={item.risks} />}
-          {!!item.opportunities?.length && (
-            <ImpactList title="↗ Возможности" items={item.opportunities} />
-          )}
-        </div>
-      )}
+      {/* [] у оценённой новости — пункты не выделены, это тоже результат: говорим об этом явно */}
+      {ready &&
+        (item.risks?.length || item.opportunities?.length ? (
+          <div className={cx(s.impact, 'appear')}>
+            <ImpactList title="△ Риски" items={item.risks ?? []} />
+            <ImpactList title="↗ Возможности" items={item.opportunities ?? []} />
+          </div>
+        ) : (
+          <p className={cx(s.impactNone, 'appear')}>Рисков и возможностей не выявлено</p>
+        ))}
 
       {bank && (
         <div className={cx(s.bank, 'appear')}>
@@ -205,11 +207,15 @@ function ImpactList({ title, items }: { title: string; items: string[] }) {
   return (
     <div className={s.impactCol}>
       <p className="t-12 t-semibold">{title}</p>
-      <ul className={s.impactList}>
-        {items.map((x) => (
-          <li key={x}>{x}</li>
-        ))}
-      </ul>
+      {items.length ? (
+        <ul className={s.impactList}>
+          {items.map((x) => (
+            <li key={x}>{x}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="t-12 c-muted">Не выявлено</p>
+      )}
     </div>
   )
 }

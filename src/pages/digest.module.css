@@ -159,6 +159,16 @@
   line-height: 17px;
 }
 
+.impactNone {
+  align-self: flex-start;
+  padding: 9px 14px;
+  border-radius: 10px;
+  background: var(--c-bg);
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--c-muted);
+}
+
 /* Позиция банка в карточке — зелёная подложка, как метка «Аналитика банка» */
 .bank {
   display: flex;

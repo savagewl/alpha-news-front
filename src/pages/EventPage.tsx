@@ -267,7 +267,7 @@ function Blocks({ data }: { data: InterpretationResult }) {
   )
 }
 
-/** Главное для роли — первое предложение вывода, полный текст ниже в разделе 03 */
+/** Главное для компании — первое предложение вывода, полный текст ниже в разделе 03 */
 const firstSentence = (text: string) => /^.+?[.!?](?=\s|$)/s.exec(text)?.[0] ?? text
 
 function List({ items = [] }: { items?: string[] }) {
