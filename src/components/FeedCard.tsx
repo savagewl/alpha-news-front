@@ -11,6 +11,7 @@ import s from '../pages/digest.module.css'
 import { cx } from './cx'
 import { HeartIcon, SparklesIcon } from './Icons'
 import { OpenPdf } from './OpenPdf'
+import { RichText } from './Typewriter'
 import { OriginTag, SkeletonBar } from './ui'
 
 /** Балл релевантности 0…1 → словесная метка из макета */
@@ -128,7 +129,7 @@ export function FeedCard({
       </div>
 
       <p className={s.cardText}>
-        {item.brief_impact ? stripCitations(item.brief_impact) : item.summary}
+        {item.brief_impact ? <RichText text={stripCitations(item.brief_impact)} /> : item.summary}
       </p>
 
       {a?.status === 'generating' && (
@@ -153,7 +154,9 @@ export function FeedCard({
       {bank && (
         <div className={cx(s.bank, 'appear')}>
           <OriginTag origin="bank">Аналитика банка</OriginTag>
-          <p className={s.cardText}>{stripCitations(bank)}</p>
+          <p className={s.cardText}>
+            <RichText text={stripCitations(bank)} />
+          </p>
           {pdfs.length > 0 && (
             <div className={s.origins}>
               {pdfs.map((p) => (
@@ -210,7 +213,9 @@ function ImpactList({ title, items }: { title: string; items: string[] }) {
       {items.length ? (
         <ul className={s.impactList}>
           {items.map((x) => (
-            <li key={x}>{x}</li>
+            <li key={x}>
+              <RichText text={x} />
+            </li>
           ))}
         </ul>
       ) : (

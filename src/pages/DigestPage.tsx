@@ -6,6 +6,8 @@ import { useCompany } from '../api/companyHooks'
 import type { CompanyNewsItem } from '../api/companyNewsTypes'
 import type { Company } from '../api/companyTypes'
 import { FeedCard } from '../components/FeedCard'
+import { RichText } from '../components/Typewriter'
+import { stripCitations } from '../api/companyNewsFormat'
 import { Icon } from '../components/Icons'
 import { Button, Dropdown, MenuItem, StateCard, Tag } from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
@@ -197,25 +199,29 @@ function Feed() {
                   )}
                 </Dropdown>
                 <Button pressed={filters.risks} onClick={() => set({ risks: !filters.risks })}>
-                  △ Риски
+                  <Icon name="risk" size={16} />
+                  Риски
                 </Button>
                 <Button
                   pressed={filters.opportunities}
                   onClick={() => set({ opportunities: !filters.opportunities })}
                 >
-                  ↗ Возможности
+                  <Icon name="trendUp" size={16} />
+                  Возможности
                 </Button>
                 <Button
                   pressed={!filters.relevantOnly}
                   onClick={() => set({ relevantOnly: !filters.relevantOnly })}
                 >
-                  {filters.relevantOnly ? '□' : '■'} Все новости
+                  <Icon name="newspaper" size={16} />
+                  Все новости
                 </Button>
                 <Button
                   pressed={filters.bankOnly}
                   onClick={() => set({ bankOnly: !filters.bankOnly })}
                 >
-                  {filters.bankOnly ? '■' : '□'} Только аналитика банка
+                  <Icon name="bank" size={16} />
+                  Только аналитика банка
                 </Button>
               </div>
               <div className={`${s.row} ${s.between}`}>
@@ -339,7 +345,9 @@ function Hero({ item }: { item: CompanyNewsItem }) {
         <span className={h.heroTag}>AI · Условный бизнес-эффект</span>
         <h2 className={h.heroTitle}>{item.title}</h2>
       </div>
-      <p className={h.heroText}>{item.brief_impact || item.summary}</p>
+      <p className={h.heroText}>
+        {item.brief_impact ? <RichText text={stripCitations(item.brief_impact)} /> : item.summary}
+      </p>
       <div className={h.heroFoot}>
         <p className={h.heroBasis}>
           <b>Основание:</b> {item.relevance_reasons.join('; ') || 'совпадение с профилем компании'}
