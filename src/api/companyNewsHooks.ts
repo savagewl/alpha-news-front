@@ -63,8 +63,6 @@ export const companyNewsKeys = {
 
 export const feedPageSize = 20
 
-const assessingPollMs = 15_000
-
 /** Лента сводки: страницы по limit/offset, «Показать ещё» догружает следующую */
 export const useCompanyNews = (companyId: string, q: CompanyNewsQuery) =>
   useInfiniteQuery({
@@ -75,11 +73,6 @@ export const useCompanyNews = (companyId: string, q: CompanyNewsQuery) =>
     getNextPageParam: (last) =>
       last.offset + last.limit < last.total ? last.offset + last.limit : undefined,
     enabled: !!companyId,
-    // пока LLM оценивает новости ленты, подтягиваем готовые оценки
-    refetchInterval: (query) =>
-      query.state.data?.pages.some((p) => p.items.some((n) => n.processing_status === 'processing'))
-        ? assessingPollMs
-        : false,
   })
 
 /** Как часто проверяем, не появились ли в ленте новые публикации */

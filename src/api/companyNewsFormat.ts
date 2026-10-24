@@ -66,3 +66,24 @@ export const verificationLabel = {
   REVISE: 'Верификатор вернул вывод на доработку',
   INSUFFICIENT: 'Доказательств недостаточно для вывода',
 } as const
+
+/**
+ * id PDF банка у источника: из evidence_ref «bank:<id>#…» / «analytics:<id>#…»
+ * или из source_url «/analytics/documents/<id>/file#page=N»
+ */
+export function documentIdOf(src: Pick<InterpretationSource, 'evidence_ref' | 'source_url'>) {
+  return (
+    /^(?:bank|analytics):([^#]+)/.exec(src.evidence_ref)?.[1] ??
+    /\/analytics\/documents\/([^/]+)\/file/.exec(src.source_url)?.[1] ??
+    null
+  )
+}
+
+/**
+ * Служебные ссылки модели в тексте не сопоставлены с источниками — не показываем их:
+ * метки [B2] и вставки evidence_ref вида «(company:Отрасль (ОКВЭД 25.11))»
+ */
+export const stripCitations = (text: string) =>
+  text
+    .replace(/\s*\[[A-Z]\d+\]/g, '')
+    .replace(/\s*\((?:company|news|bank|analytics):(?:[^()]|\([^()]*\))*\)/g, '')

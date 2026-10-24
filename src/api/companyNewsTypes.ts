@@ -18,10 +18,16 @@ export interface CompanyNewsItem {
   relevance_score: number
   relevance_reasons: string[]
   /** not_assessed — влияние на компанию ещё не оценено, риски и возможности пустые */
-  assessment_status?: 'ready' | 'not_assessed'
+  assessment_status?: 'ready' | 'pending' | 'not_assessed'
   brief_impact?: string | null
+  /** [] — пункты не выделены, null — оценки пока нет */
   risks?: string[] | null
   opportunities?: string[] | null
+  /** Подтверждённая позиция банка; в ленте бэк сейчас отдаёт её как bank_analytics */
+  bank_position?: string | null
+  bank_analytics?: string | null
+  sources?: InterpretationSource[] | null
+  bank_sources?: InterpretationSource[] | null
 }
 
 export interface CompanyNewsPage {
@@ -207,4 +213,39 @@ export interface AnalyticsSearchResult {
   /** Без BGE бэк откатывается на текстовый поиск */
   mode_used: 'hybrid' | 'keyword' | 'semantic'
   warnings?: string[]
+}
+
+/** Событие assessment потока POST /companies/{id}/news/assessments/stream */
+export type AssessmentEvent =
+  | { news_id: string; status: 'queued' | 'generating' }
+  | {
+      news_id: string
+      status: 'ready'
+      brief_impact: string
+      risks: string[]
+      opportunities: string[]
+      bank_position: string | null
+      sources: InterpretationSource[]
+      warnings?: string[]
+      is_demo?: boolean
+      reused?: boolean
+    }
+  | {
+      news_id: string
+      status: 'needs_revision' | 'insufficient'
+      warnings?: string[]
+      is_demo?: boolean
+      reused?: boolean
+    }
+  | {
+      news_id: string
+      status: 'failed'
+      detail?: string
+      http_status?: number
+      retryable?: boolean
+    }
+
+export interface AssessmentDone {
+  total: number
+  counts: Partial<Record<string, number>>
 }

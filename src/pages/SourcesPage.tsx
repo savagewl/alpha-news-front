@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { useAuth } from '../auth/context'
 import { ApiError } from '../api/client'
 import { formatDate } from '../api/companyFormat'
-import { originLabel, originOf, refKind } from '../api/companyNewsFormat'
+import { documentIdOf, originLabel, originOf, refKind } from '../api/companyNewsFormat'
 import {
   interpretationError,
   threadStorage,
@@ -314,8 +314,7 @@ function PrimarySource({ src }: { src: InterpretationSource }) {
 }
 
 function BankSource({ src }: { src: InterpretationSource }) {
-  // «analytics:<id>#<фрагмент>» — id документа нужен, чтобы открыть PDF
-  const documentId = /^analytics:([^#]+)/.exec(src.evidence_ref)?.[1]
+  const documentId = documentIdOf(src)
   return (
     <Panel>
       <h2 className="t-h2">Аналитика банка</h2>

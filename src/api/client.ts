@@ -116,6 +116,36 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
   return data as T
 }
 
+/**
+ * POST с ответом text/event-stream. До открытия потока бэк может ответить обычным JSON
+ * с ошибкой (401/404/422/503) — поэтому проверяем статус и Content-Type до чтения тела.
+ */
+export async function openStream(
+  path: string,
+  body: unknown,
+  signal: AbortSignal,
+): Promise<ReadableStream<Uint8Array>> {
+  const token = tokenStorage.get()
+  const res = await fetch(buildUrl(path), {
+    method: 'POST',
+    signal,
+    headers: {
+      Accept: 'text/event-stream',
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  })
+  const type = res.headers.get('Content-Type') ?? ''
+  if (!res.ok || !type.includes('text/event-stream') || !res.body) {
+    const text = await res.text()
+    const data = text ? safeJson(text) : undefined
+    if (res.status === 401 && token) onUnauthorized?.()
+    throw new ApiError(res.ok ? 502 : res.status, errorMessage(data, res.statusText), data)
+  }
+  return res.body
+}
+
 /** Файл с авторизацией — для PDF аналитики, которые не открыть обычной ссылкой */
 export async function requestBlob(path: string): Promise<Blob> {
   const token = tokenStorage.get()

@@ -105,8 +105,21 @@ function ViewTabs({ view, onChange }: { view: View; onChange: (v: View) => void 
 function Feed() {
   const { companyId, saved } = useWorkspace()
   const { data: company } = useCompany(companyId)
-  const { feed, first, all, visible, fresh, filters, set, reset, filtered, refresh } =
-    useDigestFeed(companyId)
+  const {
+    feed,
+    first,
+    all,
+    visible,
+    fresh,
+    filters,
+    set,
+    reset,
+    filtered,
+    assessments,
+    observe,
+    retry,
+    refresh,
+  } = useDigestFeed(companyId)
   // главный вывод дня — самая релевантная новость ленты
   const top = all[0]
   const notAssessed = all.filter((n) => n.assessment_status !== 'ready').length
@@ -198,12 +211,11 @@ function Feed() {
                 >
                   {filters.relevantOnly ? '□' : '■'} Все новости
                 </Button>
-                {/* лента пока не отмечает новости с материалами банка — включим, когда бэк их отдаст */}
                 <Button
-                  disabled
-                  title="Фильтр появится, когда лента начнёт отмечать материалы банка"
+                  pressed={filters.bankOnly}
+                  onClick={() => set({ bankOnly: !filters.bankOnly })}
                 >
-                  □ Только аналитика банка
+                  {filters.bankOnly ? '■' : '□'} Только аналитика банка
                 </Button>
               </div>
               <div className={`${s.row} ${s.between}`}>
@@ -258,7 +270,14 @@ function Feed() {
             )}
 
             {visible.map((n) => (
-              <FeedCard key={n.id} item={n} rank={all.indexOf(n) + 1} />
+              <FeedCard
+                key={n.id}
+                item={n}
+                rank={all.indexOf(n) + 1}
+                assessment={assessments[n.id]}
+                cardRef={observe(n.id)}
+                onRetry={() => retry(n.id)}
+              />
             ))}
 
             {feed.hasNextPage && (
