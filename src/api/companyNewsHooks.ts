@@ -1,14 +1,16 @@
-// Персональная лента компании, AI-интерпретация, личный чат по новости и каталог аналитики —
+// Персональная лента компании, AI-интерпретация, личный чат по новости и аналитика банка —
 // запросы к бэкенду.
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ApiError, api } from './client'
+import { ApiError, api, requestBlob } from './client'
 import type {
   AnalyticsDocument,
+  AnalyticsSearchResult,
   ChatHistory,
   ChatMessageResult,
   ChatThread,
   CompanyNewsPage,
   CompanyNewsQuery,
+  DocumentPassage,
   InterpretationResult,
 } from './companyNewsTypes'
 
@@ -37,6 +39,16 @@ export const companyNewsApi = {
     ),
   documents: (signal?: AbortSignal) =>
     api.get<AnalyticsDocument[]>('/analytics/documents', { limit: 100 }, signal),
+  passages: (documentId: string, signal?: AbortSignal) =>
+    api.get<DocumentPassage[]>(
+      `/analytics/documents/${encodeURIComponent(documentId)}/passages`,
+      { limit: 100 },
+      signal,
+    ),
+  search: (query: string) =>
+    api.post<AnalyticsSearchResult>('/analytics/search', { query, limit: 10, mode: 'hybrid' }),
+  file: (documentId: string) =>
+    requestBlob(`/analytics/documents/${encodeURIComponent(documentId)}/file`),
 }
 
 export const companyNewsKeys = {
@@ -46,9 +58,12 @@ export const companyNewsKeys = {
     ['interpretation', companyId, newsId] as const,
   history: (threadId: string) => ['chat', threadId] as const,
   documents: ['analytics', 'documents'] as const,
+  passages: (documentId: string) => ['analytics', 'documents', documentId, 'passages'] as const,
 }
 
 export const feedPageSize = 20
+
+const assessingPollMs = 15_000
 
 /** Лента сводки: страницы по limit/offset, «Показать ещё» догружает следующую */
 export const useCompanyNews = (companyId: string, q: CompanyNewsQuery) =>
@@ -60,6 +75,11 @@ export const useCompanyNews = (companyId: string, q: CompanyNewsQuery) =>
     getNextPageParam: (last) =>
       last.offset + last.limit < last.total ? last.offset + last.limit : undefined,
     enabled: !!companyId,
+    // пока LLM оценивает новости ленты, подтягиваем готовые оценки
+    refetchInterval: (query) =>
+      query.state.data?.pages.some((p) => p.items.some((n) => n.processing_status === 'processing'))
+        ? assessingPollMs
+        : false,
   })
 
 /** Как часто проверяем, не появились ли в ленте новые публикации */
@@ -168,8 +188,42 @@ export const useAsk = (
   })
 }
 
+const processingStatuses = new Set(['queued', 'extracting', 'indexing'])
+
 export const useAnalyticsDocuments = () =>
   useQuery({
     queryKey: companyNewsKeys.documents,
     queryFn: ({ signal }) => companyNewsApi.documents(signal),
+    // PDF обрабатывается в фоне — ждём, пока статус станет итоговым
+    refetchInterval: (query) =>
+      query.state.data?.some((d) => processingStatuses.has(d.status)) ? 5_000 : false,
   })
+
+export const useDocumentPassages = (documentId: string | null) =>
+  useQuery({
+    queryKey: companyNewsKeys.passages(documentId ?? ''),
+    queryFn: ({ signal }) => companyNewsApi.passages(documentId!, signal),
+    enabled: !!documentId,
+    staleTime: 5 * 60_000,
+  })
+
+/** Поиск по материалам банка: гибрид BGE и полнотекстового, без BGE — только текстовый */
+export const useAnalyticsSearch = () =>
+  useMutation({ mutationFn: (query: string) => companyNewsApi.search(query) })
+
+/**
+ * PDF отдаётся только с токеном, поэтому обычная ссылка не подходит:
+ * скачиваем файл и открываем его во вкладке, #page=N листает к нужной странице.
+ */
+export async function openDocument(documentId: string, page?: number | null) {
+  const tab = window.open('', '_blank')
+  try {
+    const blob = await companyNewsApi.file(documentId)
+    const url = URL.createObjectURL(blob)
+    if (tab) tab.location.href = page ? `${url}#page=${page}` : url
+    else window.location.href = url
+  } catch (err) {
+    tab?.close()
+    throw err
+  }
+}

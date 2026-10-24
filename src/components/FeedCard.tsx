@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { useNewsSources } from '../api/articleHooks'
 import { topicLabel } from '../api/articleTypes'
@@ -7,6 +8,7 @@ import { useWorkspace } from '../state/context'
 import s from '../pages/digest.module.css'
 import { cx } from './cx'
 import { HeartIcon, SparklesIcon } from './Icons'
+import { SkeletonBar } from './ui'
 
 /** Балл релевантности 0…1 → словесная метка из макета */
 const relevanceLevel = (score: number) =>
@@ -18,6 +20,8 @@ const newsKind = (item: Pick<CompanyNewsItem, 'risks' | 'opportunities'>) =>
 
 /** Карточка новости в сводке: ранг, релевантность и её причина, факт и статус оценки AI */
 export function FeedCard({ item, rank }: { item: CompanyNewsItem; rank: number }) {
+  // задержка появления — по номеру внутри догруженной порции
+  const order = { '--i': (rank - 1) % 20 } as CSSProperties
   const { isSaved, toggleSaved } = useWorkspace()
   const { data: sources } = useNewsSources()
   const saved = isSaved(item.id)
@@ -25,10 +29,12 @@ export function FeedCard({ item, rank }: { item: CompanyNewsItem; rank: number }
   const label = String(rank).padStart(2, '0') + (kind ? ` / ${kind}` : '')
   const source = sources?.find((x) => x.code === item.source_code)?.name ?? item.source_code
   const assessed = item.assessment_status === 'ready'
+  // LLM прямо сейчас оценивает новость — место под вывод держим скелетоном
+  const assessing = !assessed && item.processing_status === 'processing'
   const to = `/events/${item.id}`
 
   return (
-    <article id={`event-${item.id}`} className={s.card}>
+    <article id={`event-${item.id}`} className={cx(s.card, 'appear')} style={order}>
       <div className={s.cardHead}>
         <div className={s.cardTop}>
           <div className={s.chips}>
@@ -59,6 +65,12 @@ export function FeedCard({ item, rank }: { item: CompanyNewsItem; rank: number }
         </h3>
       </div>
       <p className={s.cardText}>{item.brief_impact || item.summary}</p>
+      {assessing && (
+        <div className={s.assessing} aria-hidden>
+          <SkeletonBar width="88%" />
+          <SkeletonBar width="56%" />
+        </div>
+      )}
       <div className={s.origins}>
         <span className={s.origin}>
           <span>
@@ -67,7 +79,11 @@ export function FeedCard({ item, rank }: { item: CompanyNewsItem; rank: number }
         </span>
         <span className={s.origin} title="Вывод AI">
           <SparklesIcon />
-          {assessed ? 'Влияние оценено AI · не прогноз' : 'Влияние ещё не оценено'}
+          {assessed
+            ? 'Влияние оценено AI · не прогноз'
+            : assessing
+              ? 'AI оценивает влияние…'
+              : 'Влияние ещё не оценено'}
         </span>
       </div>
     </article>

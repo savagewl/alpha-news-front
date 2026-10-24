@@ -1,3 +1,5 @@
+import { useLayoutEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { topicLabel, type ArticleTopic } from '../api/articleTypes'
 import { formatDecimal, place, plural } from '../api/companyFormat'
 import { useCompany } from '../api/companyHooks'
@@ -5,13 +7,13 @@ import type { CompanyNewsItem } from '../api/companyNewsTypes'
 import type { Company } from '../api/companyTypes'
 import { FeedCard } from '../components/FeedCard'
 import { Icon } from '../components/Icons'
-import { cx } from '../components/cx'
 import { Button, Dropdown, MenuItem, StateCard, Tag } from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
-import { roleFocus, shortRole } from '../mocks/data'
 import { useWorkspace } from '../state/context'
 import h from './digest.module.css'
 import s from './pages.module.css'
+import { BankAnalytics } from './BankAnalytics'
+import { DigestSkeleton } from './Skeletons'
 import { useDigestFeed } from './useDigestFeed'
 
 const topics = Object.keys(topicLabel) as ArticleTopic[]
@@ -29,8 +31,79 @@ const companySigns = (c: Company) =>
     .filter(Boolean)
     .join(' · ')
 
+type View = 'feed' | 'bank'
+
 export default function DigestPage() {
-  const { companyId, role, saved } = useWorkspace()
+  // вкладка в адресе — переживает перезагрузку, ссылкой можно поделиться
+  const [params, setParams] = useSearchParams()
+  const view: View = params.get('view') === 'bank' ? 'bank' : 'feed'
+  const setView = (v: View) => setParams(v === 'bank' ? { view: 'bank' } : {}, { replace: true })
+  const { companyId } = useWorkspace()
+
+  return (
+    <>
+      <PageHead
+        crumb="Сводка"
+        title="Сводка дня"
+        subtitle={
+          view === 'bank'
+            ? 'Материалы банка — основа позиции банка в разборах событий'
+            : `${today()} · ${companyId}`
+        }
+      />
+      <ViewTabs view={view} onChange={setView} />
+      <div key={view} className={h.view}>
+        {view === 'bank' ? <BankAnalytics /> : <Feed />}
+      </div>
+    </>
+  )
+}
+
+const views: { id: View; label: string }[] = [
+  { id: 'feed', label: 'Лента новостей' },
+  { id: 'bank', label: '▤ Аналитика банка' },
+]
+
+function ViewTabs({ view, onChange }: { view: View; onChange: (v: View) => void }) {
+  const refs = useRef<Record<View, HTMLButtonElement | null>>({ feed: null, bank: null })
+  const [thumb, setThumb] = useState<{ left: number; width: number } | null>(null)
+
+  // подложка встаёт под активную кнопку: ширина вкладок разная, поэтому меряем
+  useLayoutEffect(() => {
+    const el = refs.current[view]
+    if (el) setThumb({ left: el.offsetLeft - 4, width: el.offsetWidth })
+  }, [view])
+
+  return (
+    <div className={h.tabs} role="tablist" aria-label="Раздел сводки">
+      {thumb && (
+        <span
+          className={h.tabThumb}
+          style={{ width: thumb.width, transform: `translateX(${thumb.left}px)` }}
+          aria-hidden
+        />
+      )}
+      {views.map((v) => (
+        <button
+          key={v.id}
+          ref={(el) => {
+            refs.current[v.id] = el
+          }}
+          type="button"
+          role="tab"
+          aria-selected={view === v.id}
+          className={h.tab}
+          onClick={() => onChange(v.id)}
+        >
+          {v.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function Feed() {
+  const { companyId, saved } = useWorkspace()
   const { data: company } = useCompany(companyId)
   const { feed, first, all, visible, fresh, filters, set, reset, filtered, refresh } =
     useDigestFeed(companyId)
@@ -45,8 +118,6 @@ export default function DigestPage() {
 
   return (
     <>
-      <PageHead crumb="Сводка" title="Сводка дня" subtitle={`${today()} · ${companyId}`} />
-
       {!companyId && (
         <StateCard
           kind="empty"
@@ -57,12 +128,7 @@ export default function DigestPage() {
       )}
 
       {companyId && feed.isPending && (
-        <StateCard
-          kind="loading"
-          title="Готовим контекст компании"
-          text="Ожидаем профиль и разрешённые источники. Ранжирование ещё не сформировано."
-          note="Ожидание данных · результатов пока нет"
-        />
+        <DigestSkeleton note="Ранжируем новости под профиль компании…" />
       )}
 
       {feed.isError && (
@@ -210,9 +276,7 @@ export default function DigestPage() {
           <aside className={h.aside}>
             <section className={h.panel}>
               <h2 className="t-h2">Почему именно вам</h2>
-              <Tag variant="red">
-                {companyId} / {shortRole(role)}
-              </Tag>
+              <Tag variant="red">{companyId}</Tag>
               <div className={h.facts}>
                 <Fact label="Компания" value={company?.name?.trim() || companyId} />
                 <Fact
@@ -227,14 +291,6 @@ export default function DigestPage() {
                 <Fact label="Ключевые признаки" value={company && companySigns(company)} />
               </div>
               <Button to="/profile">Профиль и доказательства →</Button>
-            </section>
-            <section className={cx(h.panel, h.panelGreen)}>
-              <h2 className="t-h2">Задачи роли</h2>
-              <ol className={h.tasks}>
-                {(roleFocus[role]?.tasks ?? []).map((t) => (
-                  <li key={t}>{t}</li>
-                ))}
-              </ol>
             </section>
             <section className={h.panel}>
               <h2 className="t-h2">Что не подтверждено</h2>
@@ -259,7 +315,7 @@ export default function DigestPage() {
 
 function Hero({ item }: { item: CompanyNewsItem }) {
   return (
-    <section className={h.hero}>
+    <section className={`${h.hero} appear`}>
       <div className={h.heroHead}>
         <span className={h.heroTag}>AI · Условный бизнес-эффект</span>
         <h2 className={h.heroTitle}>{item.title}</h2>

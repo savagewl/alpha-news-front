@@ -116,6 +116,19 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
   return data as T
 }
 
+/** Файл с авторизацией — для PDF аналитики, которые не открыть обычной ссылкой */
+export async function requestBlob(path: string): Promise<Blob> {
+  const token = tokenStorage.get()
+  const res = await fetch(buildUrl(path), {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) {
+    if (res.status === 401 && token) onUnauthorized?.()
+    throw new ApiError(res.status, res.statusText)
+  }
+  return res.blob()
+}
+
 function safeJson(text: string): unknown {
   try {
     return JSON.parse(text)

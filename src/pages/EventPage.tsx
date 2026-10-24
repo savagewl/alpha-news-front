@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, type CSSProperties, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import { useArticle, useNewsSources } from '../api/articleHooks'
 import { formatDate } from '../api/companyFormat'
@@ -23,7 +23,7 @@ export default function EventPage() {
 }
 
 function Interpretation({ eventId }: { eventId: string }) {
-  const { companyId, role, openEvent, isSaved, toggleSaved } = useWorkspace()
+  const { companyId, openEvent, isSaved, toggleSaved } = useWorkspace()
   const { data } = useInterpretation(companyId, eventId)
   const { data: article } = useArticle(eventId)
   const { data: newsSources } = useNewsSources()
@@ -63,7 +63,7 @@ function Interpretation({ eventId }: { eventId: string }) {
       {insight && (
         <section className={s.lime} style={{ padding: '24px 20px' }}>
           <div className={s.col} style={{ gap: 8 }}>
-            <p className={s.eyebrow}>✦ ГЛАВНОЕ ДЛЯ РОЛИ</p>
+            <p className={s.eyebrow}>✦ ГЛАВНОЕ ДЛЯ КОМПАНИИ</p>
             <h2 className={`${s.limeTitle} ${s.limeTitleSm}`}>
               {firstSentence(insight.ai_interpretation)}
             </h2>
@@ -111,9 +111,7 @@ function Interpretation({ eventId }: { eventId: string }) {
         <div className={s.aside}>
           <Panel>
             <h2 className="t-h2">Контекст решения</h2>
-            <Tag>
-              {companyId} / {role}
-            </Tag>
+            <Tag>{companyId}</Tag>
             <p className="t-13">
               Разбор построен по профилю {companyId}: отрасль, регион, продукты банка и платёжные
               связи. Модель: {data.model}
@@ -229,7 +227,11 @@ function Blocks({ data }: { data: InterpretationResult }) {
   return (
     <>
       {blocks.map((b, i) => (
-        <section key={b.question} className={s.block}>
+        <section
+          key={b.question}
+          className={`${s.block} appear`}
+          style={{ '--i': i } as CSSProperties}
+        >
           <h2 className={s.blockTitle}>
             {String(i + 1).padStart(2, '0')} {b.question}
           </h2>

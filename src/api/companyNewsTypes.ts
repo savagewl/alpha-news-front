@@ -181,3 +181,30 @@ export interface AnalyticsDocument {
   error: string | null
   embedding_error: string | null
 }
+
+/** Фрагмент PDF с привязкой к странице */
+export interface DocumentPassage {
+  document_id: string
+  chunk_id: string
+  page_number: number
+  section: string
+  text: string
+  bbox: number[]
+}
+
+export interface AnalyticsSearchHit extends DocumentPassage {
+  title: string
+  publisher: string
+  published_at: string | null
+  /** Относительный балл ранжирования, не вероятность */
+  score: number
+  evidence_ref: string
+  source_url: string
+}
+
+export interface AnalyticsSearchResult {
+  items: AnalyticsSearchHit[]
+  /** Без BGE бэк откатывается на текстовый поиск */
+  mode_used: 'hybrid' | 'keyword' | 'semantic'
+  warnings?: string[]
+}

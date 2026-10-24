@@ -14,7 +14,11 @@ export function Panel({
   className?: string
   children: ReactNode
 }) {
-  return <section className={cx(s.panel, green && s.panelGreen, className)}>{children}</section>
+  return (
+    <section className={cx(s.panel, 'appear', green && s.panelGreen, className)}>
+      {children}
+    </section>
+  )
 }
 
 export type TagVariant = 'neutral' | 'red' | 'green' | 'dark'
@@ -253,6 +257,57 @@ const stateMeta: Record<StateKind, { icon?: IconName; tag: string }> = {
   insufficient: { icon: 'database', tag: 'Недостаточно данных' },
 }
 
+/** Полоса скелетона — заготовка под строку текста, пока ждём ответ */
+export function SkeletonBar({
+  width = '100%',
+  height = 14,
+  dark,
+}: {
+  width?: number | string
+  height?: number
+  dark?: boolean
+}) {
+  return (
+    <span
+      className={cx(s.skeletonBar, dark && s.skeletonDark)}
+      style={{ width, height }}
+      aria-hidden
+    />
+  )
+}
+
+const lineWidths = ['100%', '92%', '64%', '84%', '48%']
+
+/** Карточка-скелет: повторяет форму будущей карточки, чтобы контент не прыгал при появлении */
+export function SkeletonCard({
+  lines = 3,
+  dark,
+  chips,
+  className,
+}: {
+  lines?: number
+  dark?: boolean
+  /** Ряд коротких меток над заголовком, как у карточек ленты */
+  chips?: number
+  className?: string
+}) {
+  return (
+    <div className={cx(s.skCard, dark && s.skCardDark, className)} aria-hidden>
+      {!!chips && (
+        <span className={s.skChips}>
+          {Array.from({ length: chips }, (_, i) => (
+            <SkeletonBar key={i} width={i ? 72 : 52} height={22} dark={dark} />
+          ))}
+        </span>
+      )}
+      <SkeletonBar width="46%" height={22} dark={dark} />
+      {Array.from({ length: lines }, (_, i) => (
+        <SkeletonBar key={i} width={lineWidths[i % lineWidths.length]} dark={dark} />
+      ))}
+    </div>
+  )
+}
+
 /**
  * UI-состояние из макета: причина + следующий шаг. Не смешивается с успешной выдачей,
  * поэтому всегда отдельная карточка, а не текст внутри результата.
@@ -277,7 +332,7 @@ export function StateCard({
   const tag = tagOverride ?? stateMeta[kind].tag
   return (
     <section
-      className={s.state}
+      className={cx(s.state, 'appear')}
       role={kind === 'error' ? 'alert' : 'status'}
       aria-busy={kind === 'loading'}
     >

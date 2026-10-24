@@ -5,6 +5,7 @@ import { Button, StateCard } from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
 import { useWorkspace } from '../state/context'
 import s from './pages.module.css'
+import { EventSkeleton } from './Skeletons'
 
 /**
  * Общая обвязка экранов одной новости (разбор, источники, Agent Trace):
@@ -89,19 +90,5 @@ export function EventGuard({
 }
 
 function Loading({ crumb }: { crumb: string }) {
-  return (
-    <>
-      <PageHead
-        crumb={crumb}
-        title="Загружаем событие"
-        subtitle="Собираем факты, профиль и аналитику банка"
-      />
-      <StateCard
-        kind="loading"
-        title="Готовим разбор"
-        text="Агент проверяет профиль, источники и аналитику банка. Ответ ещё не сформирован."
-        note="Первый разбор новости занимает до минуты, повторный открывается сразу"
-      />
-    </>
-  )
+  return <EventSkeleton crumb={crumb} />
 }

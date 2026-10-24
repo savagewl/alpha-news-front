@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, type CSSProperties } from 'react'
 import { useParams } from 'react-router-dom'
 import { formatDate } from '../api/companyFormat'
 import {
@@ -12,7 +12,6 @@ import { useInterpretation } from '../api/companyNewsHooks'
 import { Button, Divider, Field, Panel, StateCard, Tag } from '../components/ui'
 import { cx } from '../components/cx'
 import { PageHead } from '../layout/AppLayout'
-import { shortRole } from '../mocks/data'
 import { useWorkspace } from '../state/context'
 import { EventGuard } from './EventGuard'
 import s from './pages.module.css'
@@ -27,7 +26,7 @@ export default function TracePage() {
 }
 
 function TraceView({ eventId }: { eventId: string }) {
-  const { companyId, role, openEvent } = useWorkspace()
+  const { companyId, openEvent } = useWorkspace()
   const { data } = useInterpretation(companyId, eventId)
 
   useEffect(() => openEvent(eventId), [eventId, openEvent])
@@ -46,7 +45,7 @@ function TraceView({ eventId }: { eventId: string }) {
     <PageHead
       crumb="Agent Trace"
       title="Путь от данных к ограниченному выводу"
-      subtitle={`Agent Trace · ${headline} / ${companyId} / ${shortRole(role)}`}
+      subtitle={`Agent Trace · ${headline} / ${companyId}`}
     />
   )
 
@@ -105,7 +104,12 @@ function TraceView({ eventId }: { eventId: string }) {
           {steps.map((st, i) => {
             const state = stepState(st.status)
             return (
-              <li key={i} id={`step-${i}`} className={s.block} style={{ scrollMarginTop: 96 }}>
+              <li
+                key={i}
+                id={`step-${i}`}
+                className={cx(s.block, 'appear')}
+                style={{ scrollMarginTop: 96, '--i': i } as CSSProperties}
+              >
                 <div className={`${s.row} ${s.between}`} style={{ alignItems: 'flex-start' }}>
                   <h2 className={s.blockTitle}>{stepTitle(st.step)}</h2>
                   {state === 'done' ? (
@@ -132,7 +136,7 @@ function TraceView({ eventId }: { eventId: string }) {
         <div className={s.aside}>
           <Panel>
             <h2 className="t-h2">Единый контекст</h2>
-            <Field label="Компания / роль" value={`${companyId} / ${shortRole(role)}`} />
+            <Field label="Компания" value={companyId} />
             <Field label="Событие" value={headline || eventId} />
             <Field label="Доступ" value="Только участники компании" />
             <Divider />

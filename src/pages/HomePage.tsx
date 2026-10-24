@@ -5,7 +5,6 @@ import promo from '../assets/promo-14.png'
 import { cx } from '../components/cx'
 import { AlfaLogo } from '../components/Icons'
 import { PageHead } from '../layout/AppLayout'
-import { shortRole } from '../mocks/data'
 import { useWorkspace } from '../state/context'
 import s from './home.module.css'
 
@@ -22,7 +21,7 @@ const operations = [
 const prototypeOnly = 'Недоступно в прототипе'
 
 export default function HomePage() {
-  const { companyId, role } = useWorkspace()
+  const { companyId } = useWorkspace()
   const head = useCompanyNewsHead(companyId, { relevant_only: true })
   const count = head.data?.total ?? 0
 
@@ -90,8 +89,7 @@ export default function HomePage() {
             <div className={s.promoHead}>
               {count > 0 && (
                 <span className={s.promoTag}>
-                  {count} {plural(count, 'приоритет', 'приоритета', 'приоритетов')} для{' '}
-                  {shortRole(role)}
+                  {count} {plural(count, 'приоритет', 'приоритета', 'приоритетов')} для {companyId}
                 </span>
               )}
               <h2 className={s.promoTitle}>

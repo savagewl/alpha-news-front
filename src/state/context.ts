@@ -3,7 +3,6 @@ import { createContext, useContext } from 'react'
 export interface WorkspaceData {
   /** Выбранная компания с бэка; пустая строка — компаний у пользователя пока нет */
   companyId: string
-  role: string
   /** Сохранённые новости в виде «компания:новость» — одна новость важна разным компаниям по-разному */
   saved: string[]
   /** Последнее открытое событие — с него открываются «Источники» и «Agent Trace» */
@@ -18,7 +17,6 @@ export interface Workspace extends Omit<WorkspaceData, 'saved'> {
   /** Сколько сохранено по всем компаниям */
   savedTotal: number
   setCompany: (id: string) => void
-  setRole: (role: string) => void
   toggleSaved: (newsId: string) => void
   isSaved: (newsId: string) => boolean
   openEvent: (eventId: string) => void
@@ -34,12 +32,3 @@ export function useWorkspace() {
 }
 
 export const workspaceKey = (userId: string) => `alpha-news:workspace:${userId}`
-
-/** Записать часть контекста до входа — например, роль, выбранную при регистрации */
-export function seedWorkspace(userId: string, data: Partial<WorkspaceData>) {
-  try {
-    localStorage.setItem(workspaceKey(userId), JSON.stringify(data))
-  } catch {
-    // хранилище недоступно — возьмутся значения по умолчанию
-  }
-}

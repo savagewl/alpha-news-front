@@ -2,7 +2,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { setUnauthorizedHandler } from '../api/client'
-import { seedWorkspace } from '../state/context'
 import { authApi, type User } from './authApi'
 import { AuthContext, useAuth, type AuthState } from './context'
 
@@ -37,10 +36,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(u)
         return u
       },
-      register: async ({ role, ...input }) => {
+      register: async (input) => {
         const u = await authApi.register(input)
-        // роли на бэке нет — выбор из формы кладём в локальный контекст пользователя
-        seedWorkspace(u.id, { role })
         setUser(u)
         return u
       },

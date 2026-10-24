@@ -1,4 +1,4 @@
-// Рабочий контекст пользователя: выбранная компания, роль, сохранённые события.
+// Рабочий контекст пользователя: выбранная компания и сохранённые события.
 // Хранится в localStorage отдельно для каждого пользователя. Компанию выбирают из списка с бэка.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useAuth } from '../auth/context'
@@ -28,7 +28,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     (): WorkspaceData =>
       load(userId, {
         companyId: '',
-        role: 'Финансовый директор',
         saved: [],
         lastEventId: null,
         notes: {},
@@ -61,7 +60,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       savedTotal: data.saved.length,
       // событие другой компании в контексте новой не имеет смысла — сбрасываем
       setCompany: (companyId) => setData((d) => ({ ...d, companyId, lastEventId: null })),
-      setRole: (role) => setData((d) => ({ ...d, role })),
       toggleSaved: (id) =>
         setData((d) => {
           const entry = `${d.companyId}:${id}`

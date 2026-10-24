@@ -22,7 +22,7 @@ export function refLabel(ref: string, sources: InterpretationSource[] = []): str
   const value = rest.join(':')
   if (kind === 'company') return `Профиль: ${value}`
   if (kind === 'news') return hostOf(value) ?? value
-  if (kind === 'bank') return `Банк: ${value}`
+  if (kind === 'bank' || kind === 'analytics') return 'Аналитика банка'
   return ref
 }
 
@@ -34,8 +34,11 @@ function hostOf(url: string): string | null {
   }
 }
 
-/** Вид источника по префиксу evidence_ref */
-export const refKind = (ref: string) => ref.split(':')[0] as 'news' | 'bank' | 'company' | string
+/** Вид источника по префиксу evidence_ref; материалы банка приходят как «analytics:<id>#<фрагмент>» */
+export function refKind(ref: string): 'news' | 'bank' | 'company' | string {
+  const kind = ref.split(':')[0]
+  return kind === 'analytics' ? 'bank' : kind
+}
 
 const stepTitles: Record<string, string> = {
   analyst: 'Аналитик: черновик разбора',

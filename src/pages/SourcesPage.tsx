@@ -20,9 +20,9 @@ import type {
 } from '../api/companyNewsTypes'
 import { Feedback } from '../components/Feedback'
 import { Icon } from '../components/Icons'
+import { OpenPdf } from '../components/OpenPdf'
 import { Legend, OriginTag, Panel, Skeleton, StateCard, Tag } from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
-import { shortRole } from '../mocks/data'
 import { useWorkspace } from '../state/context'
 import { EventGuard } from './EventGuard'
 import s from './pages.module.css'
@@ -45,7 +45,7 @@ export default function SourcesPage() {
 }
 
 function Dialog({ eventId }: { eventId: string }) {
-  const { companyId, role, openEvent } = useWorkspace()
+  const { companyId, openEvent } = useWorkspace()
   const { user } = useAuth()
   const userId = user?.id ?? 'guest'
   const { data } = useInterpretation(companyId, eventId)
@@ -110,7 +110,7 @@ function Dialog({ eventId }: { eventId: string }) {
 
   const asked = new Set(questions.map((q) => q.content))
   const suggestions = suggestedQuestions.filter((q) => !asked.has(q))
-  const roleLabel = `${role} · ${companyId}`
+  const roleLabel = `Вопрос · ${companyId}`
   const busy = ask.isPending || awaiting
 
   return (
@@ -118,7 +118,7 @@ function Dialog({ eventId }: { eventId: string }) {
       <PageHead
         crumb="Источники"
         title="От сигнала — к решению"
-        subtitle={`${title} · ${companyId} / ${shortRole(role)}`}
+        subtitle={`${title} · ${companyId}`}
       />
 
       <Legend />
@@ -222,7 +222,7 @@ function Dialog({ eventId }: { eventId: string }) {
 
 function Question({ text, roleLabel }: { text: string; roleLabel: string }) {
   return (
-    <section className={s.dark}>
+    <section className={`${s.dark} appear`}>
       <p className={s.darkEyebrow}>{roleLabel.toUpperCase()}</p>
       <h2 className="t-h2" style={{ fontWeight: 600 }}>
         {text}
@@ -233,7 +233,7 @@ function Question({ text, roleLabel }: { text: string; roleLabel: string }) {
 
 function Thinking({ companyId }: { companyId: string }) {
   return (
-    <section className={s.block} aria-busy>
+    <section className={`${s.block} appear`} aria-busy>
       <OriginTag origin="ai">AI · Готовим ответ</OriginTag>
       <p className="t-13 c-muted">План → профиль {companyId} → источники → проверка ограничений…</p>
       <Skeleton lines={4} />
@@ -266,7 +266,7 @@ function Exchange({
           note={a.warnings?.join(' · ') || undefined}
         />
       ) : (
-        <section className={s.block}>
+        <section className={`${s.block} appear`}>
           <OriginTag origin={origin}>{originLabel[origin]}</OriginTag>
           <p className="t-15" style={{ whiteSpace: 'pre-line' }}>
             {a.content}
@@ -314,6 +314,8 @@ function PrimarySource({ src }: { src: InterpretationSource }) {
 }
 
 function BankSource({ src }: { src: InterpretationSource }) {
+  // «analytics:<id>#<фрагмент>» — id документа нужен, чтобы открыть PDF
+  const documentId = /^analytics:([^#]+)/.exec(src.evidence_ref)?.[1]
   return (
     <Panel>
       <h2 className="t-h2">Аналитика банка</h2>
@@ -321,6 +323,7 @@ function BankSource({ src }: { src: InterpretationSource }) {
       <p className="t-15 t-semibold">{src.title}</p>
       {src.page_number != null && <p className="t-13">Страница {src.page_number}</p>}
       {src.published_at && <p className="t-12 c-muted">{formatDate(src.published_at)}</p>}
+      {documentId && <OpenPdf documentId={documentId} page={src.page_number ?? undefined} />}
     </Panel>
   )
 }

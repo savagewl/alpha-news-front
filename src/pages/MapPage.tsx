@@ -1,20 +1,13 @@
 import { useNavigate } from 'react-router-dom'
 import { BrandKey, Panel, Tag } from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
-import { useWorkspace } from '../state/context'
 import s from './pages.module.css'
 
 interface Stop {
   title: string
   text: string
   path?: string
-  /** Компания и роль, в контексте которых открывается экран */
-  as?: [string, string]
 }
-
-const CFO: [string, string] = ['U001', 'Финансовый директор']
-const TREASURY: [string, string] = ['U002', 'Руководитель казначейства']
-const CEO: [string, string] = ['U003', 'Генеральный директор']
 
 const mainPath: Stop[][] = [
   [
@@ -22,13 +15,11 @@ const mainPath: Stop[][] = [
       title: 'Вход → Компания',
       text: 'Главная Альфа-Бизнес: шапка и фирменный блок → выбор из 6 компаний и роли.',
       path: '/companies',
-      as: CFO,
     },
     {
       title: 'Профиль → Сводка',
       text: 'U001: признаки, платёжные связи, полнота → CFO: ранжирование и бизнес-резюме дня.',
       path: '/profile',
-      as: CFO,
     },
   ],
   [
@@ -36,19 +27,16 @@ const mainPath: Stop[][] = [
       title: 'Ставка / U001',
       text: 'CFO: обслуживание долга и инвестиционный бюджет.',
       path: '/events/u001-s1',
-      as: CFO,
     },
     {
       title: 'Логистика / U002',
       text: 'Казначейство: дебиторка, авансы, платёжный разрыв.',
       path: '/events/u002-l1',
-      as: TREASURY,
     },
     {
       title: 'Золото / U003',
       text: 'CEO: выручка, затраты, капитальные вложения.',
       path: '/events/u003-g1',
-      as: CEO,
     },
   ],
   [
@@ -56,13 +44,11 @@ const mainPath: Stop[][] = [
       title: 'Вопрос → Источник',
       text: 'Уточняющий вопрос о CAPEX, первоисточник и каталог 9 материалов банка.',
       path: '/sources/u001-s1',
-      as: CFO,
     },
     {
       title: 'Источник → Trace',
       text: '7 этапов: повторный поиск, нет подтверждения позиции банка, ограничение вывода.',
       path: '/trace/u001-s1',
-      as: CFO,
     },
   ],
 ]
@@ -85,7 +71,6 @@ const branches: Stop[][] = [
       title: 'Альтернативная сводка',
       text: 'U002 / казначейство — другой порядок событий под роль.',
       path: '/digest',
-      as: TREASURY,
     },
     {
       title: 'Адаптации',
@@ -126,14 +111,9 @@ const timeline = [
 
 export default function MapPage() {
   const navigate = useNavigate()
-  const { setCompany, setRole } = useWorkspace()
 
-  const go = ({ path, as }: Stop) => {
+  const go = ({ path }: Stop) => {
     if (!path) return
-    if (as) {
-      setCompany(as[0])
-      setRole(as[1])
-    }
     navigate(path)
   }
 
@@ -151,11 +131,6 @@ export default function MapPage() {
             >
               <span className={s.cardTitle}>{stop.title}</span>
               <span className="t-13">{stop.text}</span>
-              {stop.as && (
-                <Tag>
-                  Откроется как {stop.as[0]} / {stop.as[1]}
-                </Tag>
-              )}
             </button>
           ) : (
             <div key={stop.title} className={s.card}>

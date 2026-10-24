@@ -7,7 +7,6 @@ import { useAuth } from '../auth/context'
 import { AlfaLogo, Icon, UserGlyph, type IconName } from '../components/Icons'
 import { Divider, Dropdown, MenuItem } from '../components/ui'
 import { cx } from '../components/cx'
-import { roles } from '../mocks/data'
 import { useWorkspace } from '../state/context'
 import s from './AppLayout.module.css'
 import { ChangePasswordDialog } from './ChangePasswordDialog'
@@ -109,42 +108,6 @@ function CompanySwitcher({ compact }: { compact?: boolean }) {
           >
             Все компании и загрузка CSV →
           </MenuItem>
-        </>
-      )}
-    </Dropdown>
-  )
-}
-
-export function RoleSwitcher() {
-  const { role, setRole } = useWorkspace()
-  return (
-    <Dropdown
-      label="Сменить роль"
-      align="right"
-      trigger={
-        <span className={s.roleTrigger}>
-          {role}
-          <Icon name="chevronDown" size={14} color="var(--c-hint)" />
-        </span>
-      }
-    >
-      {(close) => (
-        <>
-          <p className={s.menuNote}>
-            Роль меняет порядок событий и вопросы к бизнесу, но не расширяет права доступа.
-          </p>
-          {roles.map((r) => (
-            <MenuItem
-              key={r}
-              active={r === role}
-              onSelect={() => {
-                setRole(r)
-                close()
-              }}
-            >
-              {r}
-            </MenuItem>
-          ))}
         </>
       )}
     </Dropdown>
@@ -402,13 +365,23 @@ export default function AppLayout() {
         <div className={s.main}>
           <Header />
           <main className={s.content}>
-            <Outlet />
+            <Page />
             <Footer />
           </main>
         </div>
       </div>
       <TabBar />
     </>
+  )
+}
+
+/** Страница плавно появляется при каждом переходе — key пересоздаёт обёртку */
+function Page() {
+  const { pathname } = useLocation()
+  return (
+    <div key={pathname} className={s.page}>
+      <Outlet />
+    </div>
   )
 }
 
@@ -423,7 +396,7 @@ export function Footer() {
   )
 }
 
-/** Мобильный: компания и роль переезжают из шапки в карточку под заголовком */
+/** Мобильный: компания переезжает из шапки в карточку под заголовком */
 function MobileContext() {
   const { companyId } = useWorkspace()
   const { data: company } = useCompany(companyId)
@@ -437,13 +410,11 @@ function MobileContext() {
             .join(' · ')}
         </span>
       )}
-      <Divider />
-      <RoleSwitcher />
     </div>
   )
 }
 
-/** Хлебные крошки с переключателем роли и заголовок страницы */
+/** Хлебные крошки и заголовок страницы */
 export function PageHead({
   crumb,
   title,
@@ -457,7 +428,7 @@ export function PageHead({
   subtitle: ReactNode
   /** средний уровень крошек; null — страница вне раздела аналитики */
   section?: string | null
-  /** Правый элемент строки контекста; по умолчанию — переключатель роли */
+  /** Правый элемент строки контекста */
   tag?: ReactNode
   /** Строка меток / действий под заголовком */
   children?: ReactNode
@@ -468,9 +439,7 @@ export function PageHead({
     <>
       <div className={s.context}>
         <p className={s.crumbs}>{crumbs}</p>
-        <span className={cx(workspacePage && s.desktopOnly)}>
-          {workspacePage ? <RoleSwitcher /> : tag}
-        </span>
+        {tag}
       </div>
       <div className={s.title}>
         <h1 className={s.titleText}>{title}</h1>

@@ -1,13 +1,12 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type CSSProperties, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { companyTitle, formatDecimal, place, plural } from '../api/companyFormat'
 import { useCompaniesInfinite, useCreateCompany, useImportCsv } from '../api/companyHooks'
 import type { CsvDelimiter, CsvEncoding, ImportKind, ImportResult } from '../api/companyTypes'
-import { Button, Divider, Panel, Skeleton, StateCard, Tag, TextField } from '../components/ui'
+import { Button, Panel, Skeleton, StateCard, Tag, TextField } from '../components/ui'
 import { cx } from '../components/cx'
 import { PageHead } from '../layout/AppLayout'
-import { roles } from '../mocks/data'
 import { useWorkspace } from '../state/context'
 import a from './auth.module.css'
 import s from './pages.module.css'
@@ -27,7 +26,7 @@ function useDebounced<T>(value: T, delay = 300) {
 
 export default function CompaniesPage() {
   const navigate = useNavigate()
-  const { companyId, role, setCompany, setRole } = useWorkspace()
+  const { companyId, setCompany } = useWorkspace()
   const [query, setQuery] = useState('')
   const q = useDebounced(query.trim()).slice(0, 200)
   const list = useCompaniesInfinite({ q: q || undefined, limit: PAGE })
@@ -43,7 +42,7 @@ export default function CompaniesPage() {
       <PageHead
         crumb="Компании"
         title="Сначала — контекст бизнеса"
-        subtitle="Компания и роль определяют, какие события попадут в сводку."
+        subtitle="Профиль компании определяет, какие события попадут в сводку."
       />
 
       <div className={`${s.split} ${s.split330}`}>
@@ -82,7 +81,7 @@ export default function CompaniesPage() {
                 text="Создайте компанию или загрузите CSV юридических лиц справа. Ещё вас может добавить участник компании — для этого передайте ему свой ID из меню профиля."
               />
             ))}
-          {data?.items.map((c) => {
+          {data?.items.map((c, i) => {
             const selected = c.id === companyId
             const revenue = formatDecimal(c.annual_revenue)
             const where = place(c)
@@ -90,7 +89,8 @@ export default function CompaniesPage() {
               <button
                 key={c.id}
                 type="button"
-                className={cx(s.company, selected && s.companySelected)}
+                className={cx(s.company, 'appear', selected && s.companySelected)}
+                style={{ '--i': i % PAGE } as CSSProperties}
                 aria-pressed={selected}
                 onClick={() => setCompany(c.id)}
               >
@@ -137,26 +137,9 @@ export default function CompaniesPage() {
 
         <div className={s.aside}>
           <Panel>
-            <h2 className="t-h2">Ваша роль</h2>
-            <p className="t-13">
-              Роль меняет порядок событий и вопросы к бизнесу, но не расширяет права доступа.
-            </p>
-            <Tag variant="red">{role}</Tag>
-            <Divider />
-            <div role="radiogroup" aria-label="Роль">
-              {roles.map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  role="radio"
-                  aria-checked={r === role}
-                  className={cx(s.roleOption, r === role && s.roleOptionActive)}
-                  onClick={() => setRole(r)}
-                >
-                  {r === role ? `✓ ${r}` : r}
-                </button>
-              ))}
-            </div>
+            <h2 className="t-h2">Сводка компании</h2>
+            <p className="t-13">События отбираются и ранжируются по профилю выбранной компании.</p>
+            {companyId && <Tag variant="red">{companyId}</Tag>}
             <Button variant="primary" disabled={!companyId} onClick={() => navigate('/digest')}>
               Открыть сводку →
             </Button>
