@@ -1,45 +1,54 @@
 import { useState } from 'react'
-import { usePullArticle } from '../api/articleHooks'
-import type { Article } from '../api/articleTypes'
-import { useDigest } from '../api/newsHooks'
-import type { Topic } from '../api/newsTypes'
+import type { ArticleTopic } from '../api/articleTypes'
+import { useCompanyNews, useCompanyNewsHead } from '../api/companyNewsHooks'
+import type { CompanyNewsQuery } from '../api/companyNewsTypes'
 
 export interface Filters {
-  topic: Topic | null
+  topic: ArticleTopic | null
   risks: boolean
   opportunities: boolean
-  bankOnly: boolean
+  /** false — показать и новости без совпадений с профилем компании */
+  relevantOnly: boolean
 }
 
-const noFilters: Filters = { topic: null, risks: false, opportunities: false, bankOnly: false }
+const noFilters: Filters = { topic: null, risks: false, opportunities: false, relevantOnly: true }
 
-/** Лента сводки: события компании под роль, фильтры и подгрузка свежих публикаций */
-export function useDigestFeed(companyId: string, role: string) {
-  const digest = useDigest(companyId, role)
+/** Лента сводки: ранжированные бэком новости компании, фильтры и счётчик новых публикаций */
+export function useDigestFeed(companyId: string) {
   const [filters, setFilters] = useState<Filters>(noFilters)
-  // Подгруженные публикации — новые сверху; ранжирования у них нет, поэтому живут отдельно от событий
-  const [articles, setArticles] = useState<Article[]>([])
-  const pull = usePullArticle(articles.map((a) => a.id))
+  // тема и релевантность фильтруются на бэке, риски и возможности — по загруженной ленте
+  const query: CompanyNewsQuery = { topic: filters.topic, relevant_only: filters.relevantOnly }
+  const feed = useCompanyNews(companyId, query)
+  const head = useCompanyNewsHead(companyId, query, true)
 
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }))
   const reset = () => setFilters(noFilters)
-  const filtered = !!(filters.topic || filters.risks || filters.opportunities || filters.bankOnly)
+  const filtered = !!(filters.topic || filters.risks || filters.opportunities)
 
-  const all = digest.data?.events ?? []
-  const topics = [...new Set(all.map((e) => e.topic))]
+  const pages = feed.data?.pages ?? []
+  const first = pages[0]
+  const all = pages.flatMap((p) => p.items)
   const visible = all.filter(
-    (e) =>
-      (!filters.topic || e.topic === filters.topic) &&
+    (n) =>
       // «Риски» и «Возможности» вместе — то же, что без фильтра по типу
-      (filters.risks === filters.opportunities ||
-        (filters.risks ? e.kind === 'risk' : e.kind === 'opportunity')) &&
-      (!filters.bankOnly || !!e.bankRef),
+      filters.risks === filters.opportunities ||
+      (filters.risks ? !!n.risks?.length : !!n.opportunities?.length),
   )
 
-  const onPull = () =>
-    pull.mutate(undefined, {
-      onSuccess: (article) => article && setArticles((list) => [article, ...list]),
-    })
+  // Новые — те, что поднялись в верх ленты после загрузки и ещё не показаны
+  const shown = new Set(all.map((n) => n.id))
+  const fresh = feed.isFetching ? 0 : (head.data?.items.filter((n) => !shown.has(n.id)).length ?? 0)
 
-  return { digest, pull, onPull, articles, filters, set, reset, filtered, all, topics, visible }
+  return {
+    feed,
+    first,
+    all,
+    visible,
+    fresh,
+    filters,
+    set,
+    reset,
+    filtered,
+    refresh: () => feed.refetch(),
+  }
 }

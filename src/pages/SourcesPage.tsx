@@ -1,31 +1,44 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
-import { useAsk, useInterpretation } from '../api/newsHooks'
-import type { Answer, Source } from '../api/newsTypes'
+import { useAuth } from '../auth/context'
+import { ApiError } from '../api/client'
+import { formatDate } from '../api/companyFormat'
+import { originLabel, originOf, refKind } from '../api/companyNewsFormat'
+import {
+  interpretationError,
+  threadStorage,
+  useAnalyticsDocuments,
+  useAsk,
+  useChatHistory,
+  useInterpretation,
+} from '../api/companyNewsHooks'
+import type {
+  AnalyticsDocument,
+  ChatMessage,
+  DocumentStatus,
+  InterpretationSource,
+} from '../api/companyNewsTypes'
 import { Feedback } from '../components/Feedback'
 import { Icon } from '../components/Icons'
-import {
-  Button,
-  Divider,
-  Legend,
-  OriginTag,
-  Panel,
-  Skeleton,
-  StateCard,
-  Tag,
-} from '../components/ui'
+import { Legend, OriginTag, Panel, Skeleton, StateCard, Tag } from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
 import { shortRole } from '../mocks/data'
-import { analytics, suggestedQuestions } from '../mocks/news'
 import { useWorkspace } from '../state/context'
 import { EventGuard } from './EventGuard'
 import s from './pages.module.css'
+
+const suggestedQuestions = [
+  'Что это значит для нашего инвестиционного бюджета?',
+  'Покажи только риски на горизонте квартала',
+  'Какие контрагенты затронуты?',
+  'Чем позиция банка отличается от вывода AI?',
+]
 
 export default function SourcesPage() {
   const { eventId = '' } = useParams()
   return (
     <EventGuard eventId={eventId} crumb="Источники" basePath="/sources">
-      {/* key — новый диалог для каждого события */}
+      {/* key — свой диалог для каждого события */}
       <Dialog key={eventId} eventId={eventId} />
     </EventGuard>
   )
@@ -33,13 +46,26 @@ export default function SourcesPage() {
 
 function Dialog({ eventId }: { eventId: string }) {
   const { companyId, role, openEvent } = useWorkspace()
-  const { data } = useInterpretation(eventId)
-  const ask = useAsk(eventId, role)
-  const [thread, setThread] = useState<Answer[]>([])
+  const { user } = useAuth()
+  const userId = user?.id ?? 'guest'
+  const { data } = useInterpretation(companyId, eventId)
+  const [threadId, setThreadId] = useState(() => threadStorage.get(userId, companyId, eventId))
+  const history = useChatHistory(companyId, eventId, threadId)
+  const saveThread = (id: string | null) => {
+    threadStorage.set(userId, companyId, eventId, id)
+    setThreadId(id)
+  }
+  const ask = useAsk(companyId, eventId, threadId, saveThread)
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
 
   useEffect(() => openEvent(eventId), [eventId, openEvent])
+
+  // сохранённый тред удалён на бэке — начинаем диалог заново
+  useEffect(() => {
+    if (history.error instanceof ApiError && history.error.status === 404) saveThread(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [history.error])
 
   // переход по ссылке «Первоисточники →» ведёт сразу к панели источников
   useEffect(() => {
@@ -48,17 +74,25 @@ function Dialog({ eventId }: { eventId: string }) {
   }, [data])
 
   if (!data) return null
-  const { event, sources } = data
+  const title = data.interpretation?.headline ?? 'событие'
+  const sources = data.sources ?? []
+  const bankSources = sources.filter((x) => refKind(x.evidence_ref) === 'bank')
+  const primary = sources.filter((x) => refKind(x.evidence_ref) !== 'bank')
+  // вопросы принимаются только по подтверждённой интерпретации
+  const canAsk = data.status === 'ready' && !!data.interpretation
+
+  const messages = history.data?.messages ?? []
+  const questions = messages.filter((m) => m.role === 'user')
+  const answerTo = (q: ChatMessage) =>
+    messages.find((m) => m.role === 'assistant' && m.reply_to_id === q.id)
+  const awaiting = messages.some((m) => m.status === 'generating')
 
   const send = (question: string) => {
     const q = question.trim()
-    if (!q || ask.isPending) return
+    if (!q || ask.isPending || !canAsk) return
     setPendingQuestion(q)
     setDraft('')
-    ask.mutate(q, {
-      onSuccess: (answer) => setThread((t) => [...t, answer]),
-      onSettled: () => setPendingQuestion(null),
-    })
+    ask.mutate(q, { onSettled: () => setPendingQuestion(null) })
   }
 
   const onSubmit = (e: FormEvent) => {
@@ -66,64 +100,71 @@ function Dialog({ eventId }: { eventId: string }) {
     send(draft)
   }
 
-  const asked = new Set(thread.map((a) => a.question))
+  // 502/504 бэк сохраняет в истории как неудачный ответ — отдельная карточка не нужна
+  const askError =
+    ask.isError && !(ask.error instanceof ApiError && [502, 504].includes(ask.error.status))
+      ? ask.error instanceof ApiError && ask.error.status === 409
+        ? 'Разбор события ещё не подтверждён — вопросы по нему пока недоступны.'
+        : interpretationError(ask.error)
+      : null
+
+  const asked = new Set(questions.map((q) => q.content))
   const suggestions = suggestedQuestions.filter((q) => !asked.has(q))
+  const roleLabel = `${role} · ${companyId}`
+  const busy = ask.isPending || awaiting
 
   return (
     <>
       <PageHead
         crumb="Источники"
         title="От сигнала — к решению"
-        subtitle={`${event.title} · ${companyId} / ${shortRole(role)}`}
+        subtitle={`${title} · ${companyId} / ${shortRole(role)}`}
       />
 
       <Legend />
 
       <div className={`${s.split} ${s.split390}`}>
         <div className={s.col} style={{ gap: 20 }}>
-          {thread.length === 0 && !pendingQuestion && (
+          {questions.length === 0 && !pendingQuestion && (
             <Panel>
               <h2 className="t-h2">Задайте уточняющий вопрос</h2>
               <p className="t-13">
-                AI ответит в контексте {companyId} и события «{event.title}», покажет источники и
-                отделит позицию банка от своего вывода. Можно запросить данные в другом разрезе.
+                {canAsk
+                  ? `AI ответит в контексте ${companyId} и события «${title}», покажет источники и отделит позицию банка от своего вывода. Диалог виден только вам.`
+                  : 'Разбор события не прошёл проверку — вопросы принимаются только по подтверждённому разбору.'}
               </p>
             </Panel>
           )}
 
-          {thread.map((a) => (
-            <Exchange key={a.id} answer={a} roleLabel={`${role} · ${companyId}`} />
+          {history.isPending && threadId && <Skeleton lines={4} />}
+
+          {questions.map((q) => (
+            <Exchange
+              key={q.id}
+              question={q}
+              answer={answerTo(q)}
+              roleLabel={roleLabel}
+              companyId={companyId}
+            />
           ))}
 
           {pendingQuestion && (
             <>
-              <Question text={pendingQuestion} roleLabel={`${role} · ${companyId}`} />
-              <section className={s.block} aria-busy>
-                <OriginTag origin="ai">AI · Готовим ответ</OriginTag>
-                <p className="t-13 c-muted">
-                  План → профиль {companyId} → источники → проверка ограничений…
-                </p>
-                <Skeleton lines={4} />
-              </section>
+              <Question text={pendingQuestion} roleLabel={roleLabel} />
+              <Thinking companyId={companyId} />
             </>
           )}
 
-          {ask.isError && (
-            <StateCard
-              kind="error"
-              title="Ответ не сформирован"
-              text="Источник недоступен или превышено время ожидания. Повторите вопрос."
-            />
-          )}
+          {askError && <StateCard kind="error" title="Вопрос не отправлен" text={askError} />}
 
-          {suggestions.length > 0 && (
+          {canAsk && suggestions.length > 0 && (
             <div className={s.row} aria-label="Подсказки">
               {suggestions.map((q) => (
                 <button
                   key={q}
                   type="button"
                   className={s.chip}
-                  disabled={ask.isPending}
+                  disabled={busy}
                   onClick={() => send(q)}
                 >
                   {q}
@@ -135,16 +176,19 @@ function Dialog({ eventId }: { eventId: string }) {
           <form className={s.composer} onSubmit={onSubmit}>
             <input
               aria-label="Уточняющий вопрос"
-              placeholder="Уточните допущение или выберите источник…"
+              placeholder={
+                canAsk ? 'Уточните допущение или выберите источник…' : 'Вопросы недоступны'
+              }
               value={draft}
               maxLength={500}
+              disabled={!canAsk}
               onChange={(e) => setDraft(e.target.value)}
             />
             <button
               type="submit"
               className={s.send}
               aria-label="Отправить вопрос"
-              disabled={!draft.trim() || ask.isPending}
+              disabled={!draft.trim() || busy || !canAsk}
             >
               <Icon name="arrowUp" size={16} strokeWidth={2} />
             </button>
@@ -152,44 +196,26 @@ function Dialog({ eventId }: { eventId: string }) {
         </div>
 
         <div className={s.aside} id="sources">
-          {sources
-            .filter((src) => src.kind !== 'profile')
-            .map((src) =>
-              src.kind === 'bank' ? (
-                <BankSource key={src.code} src={src} />
-              ) : (
-                <PrimarySource key={src.code} src={src} />
-              ),
-            )}
-          {!event.bankRef && (
+          {primary.map((src) => (
+            <PrimarySource key={src.evidence_ref} src={src} />
+          ))}
+          {bankSources.map((src) => (
+            <BankSource key={src.evidence_ref} src={src} />
+          ))}
+          {bankSources.length === 0 && (
             <Panel>
               <h2 className="t-h2">Аналитика банка</h2>
               <Tag variant="red">Материал не найден</Tag>
               <p className="t-13">
-                В каталоге нет обзора по этому событию. Позиция банка не установлена — AI её не
-                заменяет.
+                В каталоге нет подтверждённого обзора по этому событию. Позиция банка не установлена
+                — AI её не заменяет.
               </p>
             </Panel>
           )}
         </div>
       </div>
 
-      <Panel>
-        <h2 className="t-h2">Каталог аналитики · доступность материалов</h2>
-        <div>
-          {analytics.map((m) => (
-            <div key={m.code} className={s.catalogRow}>
-              <span className={s.row}>
-                {m.title}
-                {m.code === event.bankRef && <Tag variant="green">▤ По событию</Tag>}
-              </span>
-              <Tag variant={m.available ? 'green' : 'neutral'}>
-                {m.available ? 'Полный текст доступен' : 'Полный текст не загружен'}
-              </Tag>
-            </div>
-          ))}
-        </div>
-      </Panel>
+      <Catalog sources={sources} />
     </>
   )
 }
@@ -205,81 +231,138 @@ function Question({ text, roleLabel }: { text: string; roleLabel: string }) {
   )
 }
 
-function Exchange({ answer: a, roleLabel }: { answer: Answer; roleLabel: string }) {
+function Thinking({ companyId }: { companyId: string }) {
+  return (
+    <section className={s.block} aria-busy>
+      <OriginTag origin="ai">AI · Готовим ответ</OriginTag>
+      <p className="t-13 c-muted">План → профиль {companyId} → источники → проверка ограничений…</p>
+      <Skeleton lines={4} />
+    </section>
+  )
+}
+
+function Exchange({
+  question,
+  answer: a,
+  roleLabel,
+  companyId,
+}: {
+  question: ChatMessage
+  answer: ChatMessage | undefined
+  roleLabel: string
+  companyId: string
+}) {
+  const origin = originOf[a?.answer_kind ?? 'ai_inference']
   return (
     <>
-      <Question text={a.question} roleLabel={roleLabel} />
-      <section className={s.block}>
-        <OriginTag origin="ai">Вывод AI</OriginTag>
-        <h3 className={s.answerTitle}>{a.headline}</h3>
-        <p className="t-15">{a.lead}</p>
-        {a.section && (
-          <>
-            <Divider />
-            <h4 className="t-h2" style={{ fontWeight: 600, fontSize: 18 }}>
-              {a.section.title}
-            </h4>
-            <ol className={`${s.numbered} ${s.numberedLg}`}>
-              {a.section.items.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ol>
-          </>
-        )}
-        <Divider />
-        <p className="t-15 t-semibold">{a.need}</p>
-        <p className="t-12 c-muted">{a.limits}</p>
-        <div className={s.row}>
-          {a.refs.map((r) => (
-            <OriginTag key={r.label} origin={r.origin}>
-              {r.label}
-            </OriginTag>
-          ))}
-        </div>
-        <Feedback />
-      </section>
+      <Question text={question.content} roleLabel={roleLabel} />
+      {!a || a.status === 'generating' ? (
+        <Thinking companyId={companyId} />
+      ) : a.status === 'failed' ? (
+        <StateCard
+          kind="error"
+          title="Ответ не сформирован"
+          text="Модель не смогла подтвердить ответ источниками — непроверенный ответ не показан. Переформулируйте вопрос."
+          note={a.warnings?.join(' · ') || undefined}
+        />
+      ) : (
+        <section className={s.block}>
+          <OriginTag origin={origin}>{originLabel[origin]}</OriginTag>
+          <p className="t-15" style={{ whiteSpace: 'pre-line' }}>
+            {a.content}
+          </p>
+          {!!a.warnings?.length && <p className="t-12 c-muted">{a.warnings.join(' · ')}</p>}
+          {!!a.sources?.length && (
+            <div className={s.row}>
+              {a.sources.map((src) => {
+                const o = src.kind === 'bank' ? 'bank' : 'fact'
+                const label = `${src.title}${src.page_number != null ? ` · стр. ${src.page_number}` : ''}`
+                return src.source_url ? (
+                  <a key={src.evidence_ref} href={src.source_url} target="_blank" rel="noreferrer">
+                    <OriginTag origin={o}>{label}</OriginTag>
+                  </a>
+                ) : (
+                  <OriginTag key={src.evidence_ref} origin={o}>
+                    {label}
+                  </OriginTag>
+                )
+              })}
+            </div>
+          )}
+          <Feedback />
+        </section>
+      )}
     </>
   )
 }
 
-function PrimarySource({ src }: { src: Source }) {
+function PrimarySource({ src }: { src: InterpretationSource }) {
   return (
     <Panel>
-      <h2 className="t-h2">Первоисточник · {src.code}</h2>
+      <h2 className="t-h2">Первоисточник</h2>
       <OriginTag origin="fact">Первоисточник</OriginTag>
       <div className={s.doc}>
-        <p className="t-11 c-muted">{src.kind === 'case' ? 'ТЗ КЕЙСА' : 'НОВОСТЬ'}</p>
+        <p className="t-11 c-muted">НОВОСТЬ</p>
         <p className={s.docTitle}>{src.title}</p>
-        <p className="t-13">Дата сценария: {src.date}.</p>
+        {src.published_at && <p className="t-13">Опубликовано: {formatDate(src.published_at)}.</p>}
       </div>
-      <p className="t-12">{src.note}</p>
-      {src.url && (
-        <a className="t-13 t-semibold c-red" href={src.url} target="_blank" rel="noreferrer">
-          Открыть первоисточник ↗
-        </a>
-      )}
+      <a className="t-13 t-semibold c-red" href={src.source_url} target="_blank" rel="noreferrer">
+        Открыть первоисточник ↗
+      </a>
     </Panel>
   )
 }
 
-function BankSource({ src }: { src: Source }) {
-  const [requested, setRequested] = useState(false)
+function BankSource({ src }: { src: InterpretationSource }) {
   return (
     <Panel>
-      <h2 className="t-h2">{src.code} · Аналитика банка</h2>
-      <Tag variant={src.available ? 'green' : 'red'}>
-        {src.available ? '▤ Материал загружен' : 'Полный текст не загружен'}
-      </Tag>
+      <h2 className="t-h2">Аналитика банка</h2>
+      <Tag variant="green">▤ Материал загружен</Tag>
       <p className="t-15 t-semibold">{src.title}</p>
-      <p className="t-13">{src.note}</p>
-      {!src.available &&
-        (requested ? (
-          <p className="t-12 c-green" role="status">
-            Запрос зафиксирован. Позиция банка появится в разборе после загрузки материала.
-          </p>
-        ) : (
-          <Button onClick={() => setRequested(true)}>Запросить материал</Button>
-        ))}
+      {src.page_number != null && <p className="t-13">Страница {src.page_number}</p>}
+      {src.published_at && <p className="t-12 c-muted">{formatDate(src.published_at)}</p>}
+    </Panel>
+  )
+}
+
+const documentStatus: Record<
+  DocumentStatus,
+  { label: string; variant: 'green' | 'red' | 'neutral' }
+> = {
+  ready: { label: 'Готов к поиску', variant: 'green' },
+  parsed: { label: 'Текст извлечён', variant: 'green' },
+  queued: { label: 'В очереди', variant: 'neutral' },
+  extracting: { label: 'Извлекаем текст', variant: 'neutral' },
+  indexing: { label: 'Индексируем', variant: 'neutral' },
+  failed: { label: 'Ошибка обработки', variant: 'red' },
+}
+
+/** Каталог аналитики банка — общий корпус PDF, из которого берётся позиция банка */
+function Catalog({ sources }: { sources: InterpretationSource[] }) {
+  const docs = useAnalyticsDocuments()
+  const usedHere = (d: AnalyticsDocument) => sources.some((x) => x.source_url.includes(d.id))
+
+  return (
+    <Panel>
+      <h2 className="t-h2">Каталог аналитики · доступность материалов</h2>
+      {docs.isPending && <Skeleton lines={3} />}
+      {docs.isError && <p className="t-13 c-muted">Каталог аналитики сейчас недоступен.</p>}
+      {docs.data?.length === 0 && <p className="t-13 c-muted">Материалы банка ещё не загружены.</p>}
+      <div>
+        {docs.data?.map((d) => {
+          const st = documentStatus[d.status]
+          return (
+            <div key={d.id} className={s.catalogRow}>
+              <span className={s.row}>
+                {d.title} · {d.publisher}
+                {d.published_at && ` · ${new Date(d.published_at).toLocaleDateString('ru-RU')}`}
+                {usedHere(d) && <Tag variant="green">▤ По событию</Tag>}
+              </span>
+              <Tag variant={st.variant}>{st.label}</Tag>
+            </div>
+          )
+        })}
+      </div>
     </Panel>
   )
 }

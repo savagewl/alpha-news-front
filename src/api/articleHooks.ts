@@ -1,5 +1,5 @@
 // Публикации и RSS-источники — запросы к бэкенду.
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { api } from './client'
 import type { Article, ArticlePage, ArticlesQuery, NewsSource } from './articleTypes'
 
@@ -27,16 +27,4 @@ export const useNewsSources = () =>
   useQuery({
     queryKey: articleKeys.sources,
     queryFn: ({ signal }) => articleApi.sources(signal),
-  })
-
-/** Свежих публикаций за один запрос хватает, чтобы найти ещё не показанную */
-const pullWindow = 20
-
-/** Самая свежая публикация, которой ещё нет в ленте; null — новых нет */
-export const usePullArticle = (shownIds: string[]) =>
-  useMutation({
-    mutationFn: async () => {
-      const { items } = await articleApi.list({ limit: pullWindow })
-      return items.find((a) => !shownIds.includes(a.id)) ?? null
-    },
   })

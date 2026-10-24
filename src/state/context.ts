@@ -4,6 +4,7 @@ export interface WorkspaceData {
   /** Выбранная компания с бэка; пустая строка — компаний у пользователя пока нет */
   companyId: string
   role: string
+  /** Сохранённые новости в виде «компания:новость» — одна новость важна разным компаниям по-разному */
   saved: string[]
   /** Последнее открытое событие — с него открываются «Источники» и «Agent Trace» */
   lastEventId: string | null
@@ -11,11 +12,15 @@ export interface WorkspaceData {
   notes: Record<string, string>
 }
 
-export interface Workspace extends WorkspaceData {
+export interface Workspace extends Omit<WorkspaceData, 'saved'> {
+  /** Сохранённые новости выбранной компании */
+  saved: string[]
+  /** Сколько сохранено по всем компаниям */
+  savedTotal: number
   setCompany: (id: string) => void
   setRole: (role: string) => void
-  toggleSaved: (eventId: string) => void
-  isSaved: (eventId: string) => boolean
+  toggleSaved: (newsId: string) => void
+  isSaved: (newsId: string) => boolean
   openEvent: (eventId: string) => void
   setNote: (companyId: string, note: string) => void
 }

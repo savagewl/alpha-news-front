@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { plural } from '../api/companyFormat'
-import { useDigest } from '../api/newsHooks'
+import { useCompanyNewsHead } from '../api/companyNewsHooks'
 import promo from '../assets/promo-14.png'
 import { cx } from '../components/cx'
 import { AlfaLogo } from '../components/Icons'
@@ -23,8 +23,8 @@ const prototypeOnly = 'Недоступно в прототипе'
 
 export default function HomePage() {
   const { companyId, role } = useWorkspace()
-  const digest = useDigest(companyId, role)
-  const count = digest.data?.events.length ?? 0
+  const head = useCompanyNewsHead(companyId, { relevant_only: true })
+  const count = head.data?.total ?? 0
 
   return (
     <>

@@ -12,7 +12,10 @@ import {
 function load(userId: string, fallback: WorkspaceData): WorkspaceData {
   try {
     const raw = localStorage.getItem(key(userId))
-    return raw ? { ...fallback, ...(JSON.parse(raw) as Partial<WorkspaceData>) } : fallback
+    if (!raw) return fallback
+    const data = { ...fallback, ...(JSON.parse(raw) as Partial<WorkspaceData>) }
+    // отметки моковых событий без компании больше ничему не соответствуют
+    return { ...data, saved: data.saved.filter((x) => x.includes(':')) }
   } catch {
     return fallback
   }
@@ -49,25 +52,33 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
   }, [userId, data])
 
-  const value = useMemo<Workspace>(
-    () => ({
+  const value = useMemo<Workspace>(() => {
+    const prefix = `${data.companyId}:`
+    const saved = data.saved.filter((x) => x.startsWith(prefix)).map((x) => x.slice(prefix.length))
+    return {
       ...data,
+      saved,
+      savedTotal: data.saved.length,
       // событие другой компании в контексте новой не имеет смысла — сбрасываем
       setCompany: (companyId) => setData((d) => ({ ...d, companyId, lastEventId: null })),
       setRole: (role) => setData((d) => ({ ...d, role })),
       toggleSaved: (id) =>
-        setData((d) => ({
-          ...d,
-          saved: d.saved.includes(id) ? d.saved.filter((x) => x !== id) : [...d.saved, id],
-        })),
-      isSaved: (id) => data.saved.includes(id),
+        setData((d) => {
+          const entry = `${d.companyId}:${id}`
+          return {
+            ...d,
+            saved: d.saved.includes(entry)
+              ? d.saved.filter((x) => x !== entry)
+              : [...d.saved, entry],
+          }
+        }),
+      isSaved: (id) => saved.includes(id),
       setNote: (companyId, note) =>
         setData((d) => ({ ...d, notes: { ...d.notes, [companyId]: note.trim() } })),
       openEvent: (lastEventId) =>
         setData((d) => (d.lastEventId === lastEventId ? d : { ...d, lastEventId })),
-    }),
-    [data],
-  )
+    }
+  }, [data])
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>
 }

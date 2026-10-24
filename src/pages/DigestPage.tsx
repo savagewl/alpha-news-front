@@ -1,7 +1,8 @@
-import { formatDecimal, place } from '../api/companyFormat'
+import { topicLabel, type ArticleTopic } from '../api/articleTypes'
+import { formatDecimal, place, plural } from '../api/companyFormat'
 import { useCompany } from '../api/companyHooks'
+import type { CompanyNewsItem } from '../api/companyNewsTypes'
 import type { Company } from '../api/companyTypes'
-import { ArticleCard } from '../components/ArticleCard'
 import { FeedCard } from '../components/FeedCard'
 import { Icon } from '../components/Icons'
 import { cx } from '../components/cx'
@@ -12,6 +13,10 @@ import { useWorkspace } from '../state/context'
 import h from './digest.module.css'
 import s from './pages.module.css'
 import { useDigestFeed } from './useDigestFeed'
+
+const topics = Object.keys(topicLabel) as ArticleTopic[]
+
+const today = () => new Date().toLocaleDateString('ru-RU', { dateStyle: 'long' })
 
 /** Признаки компании, по которым подбираются события: продукты банка и страна импорта */
 const companySigns = (c: Company) =>
@@ -27,20 +32,31 @@ const companySigns = (c: Company) =>
 export default function DigestPage() {
   const { companyId, role, saved } = useWorkspace()
   const { data: company } = useCompany(companyId)
-  const { digest, pull, onPull, articles, filters, set, reset, filtered, all, topics, visible } =
-    useDigestFeed(companyId, role)
-  const data = digest.data
-  const [basisHead, basisRest] = splitBasis(data?.hero.basis ?? '')
+  const { feed, first, all, visible, fresh, filters, set, reset, filtered, refresh } =
+    useDigestFeed(companyId)
+  // главный вывод дня — самая релевантная новость ленты
+  const top = all[0]
+  const notAssessed = all.filter((n) => n.assessment_status !== 'ready').length
+
+  const showFresh = () => {
+    refresh()
+    document.getElementById('feed')?.scrollIntoView({ behavior: 'smooth' })
+  }
 
   return (
     <>
-      <PageHead
-        crumb="Сводка"
-        title={data?.title ?? 'Сводка дня'}
-        subtitle={`${data?.date ?? '11 сентября 2026'} · ${companyId}`}
-      />
+      <PageHead crumb="Сводка" title="Сводка дня" subtitle={`${today()} · ${companyId}`} />
 
-      {digest.isPending && (
+      {!companyId && (
+        <StateCard
+          kind="empty"
+          title="Компания не выбрана"
+          text="Сводка строится по профилю компании. Добавьте компанию или выберите её в списке."
+          action={<Button to="/companies">К компаниям</Button>}
+        />
+      )}
+
+      {companyId && feed.isPending && (
         <StateCard
           kind="loading"
           title="Готовим контекст компании"
@@ -49,41 +65,20 @@ export default function DigestPage() {
         />
       )}
 
-      {digest.isError && (
+      {feed.isError && (
         <StateCard
           kind="error"
           title="Сводка недоступна"
-          text="Не удалось получить события для компании. Ответ по ним не сформирован."
-          action={<Button onClick={() => digest.refetch()}>Повторить загрузку</Button>}
+          text="Не удалось получить новости для компании. Ответ по ним не сформирован."
+          action={<Button onClick={() => feed.refetch()}>Повторить загрузку</Button>}
         />
       )}
 
-      {data && (
+      {first && (
         <div className={h.layout}>
           <div className={h.feed}>
             {/* Заметная точка входа в сервис (критерий 09): главный вывод дня */}
-            <section className={h.hero}>
-              <div className={h.heroHead}>
-                <span className={h.heroTag}>AI · Условный бизнес-эффект</span>
-                <h2 className={h.heroTitle}>{data.hero.lines.join(' ')}</h2>
-              </div>
-              <p className={h.heroText}>{data.hero.text}</p>
-              <div className={h.heroFoot}>
-                <p className={h.heroBasis}>
-                  {basisHead && <b>{basisHead}</b>} {basisRest}
-                </p>
-                <button
-                  type="button"
-                  className={h.heroLink}
-                  onClick={() =>
-                    document.getElementById('feed')?.scrollIntoView({ behavior: 'smooth' })
-                  }
-                >
-                  К сводке
-                  <Icon name="arrowUpRight" size={14} strokeWidth={2} />
-                </button>
-              </div>
-            </section>
+            {top && <Hero item={top} />}
 
             <div id="feed" className={h.controls}>
               <div className={s.row} style={{ gap: 8 }}>
@@ -91,7 +86,8 @@ export default function DigestPage() {
                   label="Фильтр по теме"
                   trigger={
                     <span className={s.filterTrigger}>
-                      Тема: {filters.topic ?? 'все'} <Icon name="chevronDown" size={12} />
+                      Тема: {filters.topic ? topicLabel[filters.topic] : 'все'}{' '}
+                      <Icon name="chevronDown" size={12} />
                     </span>
                   }
                 >
@@ -115,7 +111,7 @@ export default function DigestPage() {
                             close()
                           }}
                         >
-                          {t}
+                          {topicLabel[t]}
                         </MenuItem>
                       ))}
                     </>
@@ -131,53 +127,79 @@ export default function DigestPage() {
                   ↗ Возможности
                 </Button>
                 <Button
-                  pressed={filters.bankOnly}
-                  onClick={() => set({ bankOnly: !filters.bankOnly })}
+                  pressed={!filters.relevantOnly}
+                  onClick={() => set({ relevantOnly: !filters.relevantOnly })}
                 >
-                  {filters.bankOnly ? '■' : '□'} Только аналитика банка
+                  {filters.relevantOnly ? '□' : '■'} Все новости
+                </Button>
+                {/* лента пока не отмечает новости с материалами банка — включим, когда бэк их отдаст */}
+                <Button
+                  disabled
+                  title="Фильтр появится, когда лента начнёт отмечать материалы банка"
+                >
+                  □ Только аналитика банка
                 </Button>
               </div>
               <div className={`${s.row} ${s.between}`}>
                 <p className="t-12 c-muted">
-                  По релевантности ↓ · с учётом роли «{shortRole(role)}»
+                  По релевантности ↓ · {first.total}{' '}
+                  {plural(first.total, 'новость', 'новости', 'новостей')} ·{' '}
+                  {first.ranking_method === 'hybrid'
+                    ? 'правила и смысловая близость к профилю'
+                    : 'по правилам профиля'}
                 </p>
-                <Button onClick={onPull} disabled={pull.isPending}>
-                  {pull.isPending ? 'Ищем свежие публикации…' : 'Подгрузить новую новость'}
+                <Button onClick={refresh} disabled={feed.isFetching}>
+                  {feed.isFetching && !feed.isFetchingNextPage
+                    ? 'Обновляем сводку…'
+                    : 'Обновить сводку'}
                 </Button>
               </div>
-              {pull.isSuccess && pull.data === null && (
+              {first.personalization_status === 'preparing' && (
                 <p className="t-12 c-muted" role="status">
-                  Новых публикаций в источниках пока нет — сводка актуальна.
+                  Персонализация готовится — пока лента ранжирована по явным правилам профиля.
                 </p>
               )}
-              {pull.isError && (
-                <p className="t-12 c-red" role="alert">
-                  Не удалось получить публикации. Попробуйте ещё раз.
-                </p>
+              {fresh > 0 && (
+                <Button variant="primary" onClick={showFresh}>
+                  ↑ {fresh}{' '}
+                  {plural(fresh, 'новая публикация', 'новые публикации', 'новых публикаций')} —
+                  показать
+                </Button>
               )}
             </div>
-
-            {/* Свежие публикации из RSS — сверху: они ещё не прошли отбор под компанию */}
-            {articles.map((a) => (
-              <ArticleCard key={a.id} article={a} />
-            ))}
 
             {visible.length === 0 && (
               <StateCard
                 kind="empty"
-                title={filtered ? 'По фильтрам ничего не найдено' : 'Событий пока нет'}
+                title={filtered ? 'По фильтрам ничего не найдено' : 'Новостей пока нет'}
                 text={
                   filtered
                     ? 'Измените условия или сбросьте фильтры.'
-                    : 'Для этой компании ещё не отобраны события. Свежие публикации из источников можно подгрузить кнопкой выше.'
+                    : filters.relevantOnly
+                      ? 'Совпадений с профилем компании в источниках пока нет. Можно посмотреть все новости.'
+                      : 'Источники ещё не прислали публикаций. Сводка обновится автоматически.'
                 }
-                action={filtered && <Button onClick={reset}>Сбросить фильтры</Button>}
+                action={
+                  filtered ? (
+                    <Button onClick={reset}>Сбросить фильтры</Button>
+                  ) : (
+                    filters.relevantOnly && (
+                      <Button onClick={() => set({ relevantOnly: false })}>Все новости</Button>
+                    )
+                  )
+                }
               />
             )}
 
-            {visible.map((e) => (
-              <FeedCard key={e.id} event={e} rank={all.indexOf(e) + 1} />
+            {visible.map((n) => (
+              <FeedCard key={n.id} item={n} rank={all.indexOf(n) + 1} />
             ))}
+
+            {feed.hasNextPage && (
+              <Button onClick={() => feed.fetchNextPage()} disabled={feed.isFetchingNextPage}>
+                {feed.isFetchingNextPage ? 'Загружаем…' : 'Показать ещё'}
+              </Button>
+            )}
 
             <div className={s.row}>
               <Button to="/saved">Показать сохранённое · {saved.length}</Button>
@@ -217,9 +239,14 @@ export default function DigestPage() {
             <section className={h.panel}>
               <h2 className="t-h2">Что не подтверждено</h2>
               <div className={h.unconfirmed}>
-                <p>{data.unconfirmed.text}</p>
+                <p>
+                  {notAssessed > 0
+                    ? `Влияние ${notAssessed} из ${all.length} ${plural(all.length, 'новости', 'новостей', 'новостей')} на компанию ещё не оценено — риски и возможности по ним не показаны.`
+                    : 'Влияние всех показанных новостей оценено.'}
+                </p>
+                {first.ranking_note && <p>{first.ranking_note}</p>}
                 <p className={h.note}>
-                  Аналитика банка: доступны заголовки, полные тексты не предоставлены.
+                  Позиция банка появляется в разборе только по подтверждённым материалам банка.
                 </p>
               </div>
             </section>
@@ -230,6 +257,31 @@ export default function DigestPage() {
   )
 }
 
+function Hero({ item }: { item: CompanyNewsItem }) {
+  return (
+    <section className={h.hero}>
+      <div className={h.heroHead}>
+        <span className={h.heroTag}>AI · Условный бизнес-эффект</span>
+        <h2 className={h.heroTitle}>{item.title}</h2>
+      </div>
+      <p className={h.heroText}>{item.brief_impact || item.summary}</p>
+      <div className={h.heroFoot}>
+        <p className={h.heroBasis}>
+          <b>Основание:</b> {item.relevance_reasons.join('; ') || 'совпадение с профилем компании'}
+        </p>
+        <button
+          type="button"
+          className={h.heroLink}
+          onClick={() => document.getElementById('feed')?.scrollIntoView({ behavior: 'smooth' })}
+        >
+          К сводке
+          <Icon name="arrowUpRight" size={14} strokeWidth={2} />
+        </button>
+      </div>
+    </section>
+  )
+}
+
 function Fact({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div className={h.fact}>
@@ -237,10 +289,4 @@ function Fact({ label, value }: { label: string; value: string | null | undefine
       <span className={h.factValue}>{value || '—'}</span>
     </div>
   )
-}
-
-/** «Основание: …» → жирная подпись и текст основания */
-function splitBasis(basis: string): [string, string] {
-  const m = /^(Основание:)\s*(.*)$/s.exec(basis)
-  return m ? [m[1], m[2]] : ['', basis]
 }

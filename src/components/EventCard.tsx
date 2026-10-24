@@ -1,38 +1,34 @@
 import { Link } from 'react-router-dom'
-import type { NewsEvent } from '../api/newsTypes'
+import { useNewsSources } from '../api/articleHooks'
+import { topicLabel, type Article } from '../api/articleTypes'
+import { formatDate } from '../api/companyFormat'
 import { useWorkspace } from '../state/context'
 import s from '../pages/pages.module.css'
 import { Icon } from './Icons'
 import { cx } from './cx'
 import { Tag } from './ui'
 
-/** Карточка события в сводке: метка ранга, факт, причина релевантности и происхождение */
-export function EventCard({
-  event,
-  rank,
-  isNew,
-}: {
-  event: NewsEvent
-  rank: number
-  isNew?: boolean
-}) {
+/** Карточка сохранённой новости: факт из источника и переход к разбору для компании */
+export function EventCard({ article }: { article: Article }) {
   const { isSaved, toggleSaved } = useWorkspace()
-  const saved = isSaved(event.id)
-  const label = `${String(rank).padStart(2, '0')} / ${event.kind === 'risk' ? 'Риск' : 'Возможность'}`
-  const to = `/events/${event.id}`
+  const { data: sources } = useNewsSources()
+  const saved = isSaved(article.id)
+  const source = sources?.find((x) => x.code === article.source_code)?.name ?? article.source_code
+  const to = `/events/${article.id}`
 
   return (
-    <article id={`event-${event.id}`} className={cx(s.event, isNew && s.eventNew)}>
+    <article id={`event-${article.id}`} className={s.event}>
       <div className={`${s.row} ${s.between}`}>
         <span className={s.row} style={{ gap: 8 }}>
-          <Tag variant={event.kind === 'risk' ? 'red' : 'green'}>{label}</Tag>
-          {isNew && <Tag variant="dark">Новое</Tag>}
+          {article.topics.map((t) => (
+            <Tag key={t}>{topicLabel[t] ?? t}</Tag>
+          ))}
         </span>
         <button
           type="button"
           className={cx(s.save, saved && s.saveActive)}
           aria-pressed={saved}
-          onClick={() => toggleSaved(event.id)}
+          onClick={() => toggleSaved(article.id)}
         >
           <Icon name="bookmark" size={14} />
           {saved ? 'Сохранено' : 'Сохранить'}
@@ -40,16 +36,12 @@ export function EventCard({
       </div>
       <h3 className="t-h3">
         <Link to={to} className={s.eventTitle}>
-          {event.title}
+          {article.title}
         </Link>
       </h3>
-      <p className="t-15">{event.text}</p>
-      <p className="t-12 c-green">
-        Релевантность: {event.relevance} · {event.relevanceReason}
-      </p>
+      {article.summary && <p className="t-15">{article.summary}</p>}
       <p className={s.eventMeta}>
-        {event.sourceCode} · {event.sourceTitle} · {event.date}
-        {event.bankRef && `  ·  ▤ Есть аналитика банка`}
+        {source} · {formatDate(article.published_at ?? article.first_seen_at)}
       </p>
       <Link to={to} className="t-13 t-semibold c-red" style={{ alignSelf: 'flex-start' }}>
         Разобрать влияние →
