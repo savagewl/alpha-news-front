@@ -2,18 +2,9 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { companyTitle, formatDecimal, place, plural } from '../api/companyFormat'
-import { useCompanies, useCreateCompany, useImportCsv } from '../api/companyHooks'
+import { useCompaniesInfinite, useCreateCompany, useImportCsv } from '../api/companyHooks'
 import type { CsvDelimiter, CsvEncoding, ImportKind, ImportResult } from '../api/companyTypes'
-import {
-  Button,
-  Divider,
-  Pager,
-  Panel,
-  Skeleton,
-  StateCard,
-  Tag,
-  TextField,
-} from '../components/ui'
+import { Button, Divider, Panel, Skeleton, StateCard, Tag, TextField } from '../components/ui'
 import { cx } from '../components/cx'
 import { PageHead } from '../layout/AppLayout'
 import { roles } from '../mocks/data'
@@ -21,7 +12,8 @@ import { useWorkspace } from '../state/context'
 import a from './auth.module.css'
 import s from './pages.module.css'
 
-const PAGE = 20
+/** Сколько компаний подгружается за раз */
+const PAGE = 5
 
 /** Значение, которое меняется не чаще раза в delay мс — чтобы не слать запрос на каждую букву */
 function useDebounced<T>(value: T, delay = 300) {
@@ -37,18 +29,14 @@ export default function CompaniesPage() {
   const navigate = useNavigate()
   const { companyId, role, setCompany, setRole } = useWorkspace()
   const [query, setQuery] = useState('')
-  const [offset, setOffset] = useState(0)
   const q = useDebounced(query.trim()).slice(0, 200)
-  const { data, isLoading, isError, error, refetch, isFetching } = useCompanies({
-    q: q || undefined,
-    limit: PAGE,
-    offset,
-  })
+  const list = useCompaniesInfinite({ q: q || undefined, limit: PAGE })
+  const { isLoading, isError, error, refetch, isFetching } = list
+  // новый запрос поиска — новый ключ, список начинается с первой порции
+  const first = list.data?.pages[0]
+  const data = first && { total: first.total, items: list.data!.pages.flatMap((p) => p.items) }
 
-  const search = (value: string) => {
-    setQuery(value)
-    setOffset(0)
-  }
+  const search = (value: string) => setQuery(value)
 
   return (
     <>
@@ -131,9 +119,18 @@ export default function CompaniesPage() {
               </button>
             )
           })}
-          {data && (
-            <div style={{ opacity: isFetching ? 0.6 : 1 }}>
-              <Pager offset={offset} limit={PAGE} total={data.total} onChange={setOffset} />
+          {data && data.total > 0 && (
+            <div className={`${s.row} ${s.between}`} style={{ opacity: isFetching ? 0.6 : 1 }}>
+              <span className="t-12 c-muted">
+                Показано {data.items.length} из {data.total}
+              </span>
+              {list.hasNextPage && (
+                <Button onClick={() => list.fetchNextPage()} disabled={list.isFetchingNextPage}>
+                  {list.isFetchingNextPage
+                    ? 'Загружаем…'
+                    : `Показать ещё · ${Math.min(PAGE, data.total - data.items.length)}`}
+                </Button>
+              )}
             </div>
           )}
         </div>

@@ -1,5 +1,11 @@
 // Компании, их физлица, платёжные связи, участники и импорт CSV — запросы к бэкенду.
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { api } from './client'
 import type {
   CompaniesQuery,
@@ -65,6 +71,17 @@ export const useCompanies = (q: CompaniesQuery) =>
   useQuery({
     queryKey: companyKeys.list(q),
     queryFn: ({ signal }) => companyApi.list(q, signal),
+    placeholderData: keepPreviousData,
+  })
+
+/** Список компаний порциями: «Показать ещё» догружает следующие limit штук */
+export const useCompaniesInfinite = (q: Omit<CompaniesQuery, 'offset'> & { limit: number }) =>
+  useInfiniteQuery({
+    queryKey: [...companyKeys.all, 'infinite', q] as const,
+    queryFn: ({ pageParam, signal }) => companyApi.list({ ...q, offset: pageParam }, signal),
+    initialPageParam: 0,
+    getNextPageParam: (last) =>
+      last.offset + last.limit < last.total ? last.offset + last.limit : undefined,
     placeholderData: keepPreviousData,
   })
 
