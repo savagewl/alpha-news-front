@@ -7,6 +7,7 @@ import type { InsightDraft, InterpretationSource, Verification } from '../api/co
 import { stageLabel } from '../api/interpretationStream'
 import type { Origin } from '../api/newsTypes'
 import { Feedback } from '../components/Feedback'
+import { Typewriter } from '../components/Typewriter'
 import { Button, Legend, OriginTag, Panel, StateCard, Tag } from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
 import { useWorkspace } from '../state/context'
@@ -27,7 +28,7 @@ export default function EventPage() {
 function Interpretation({ eventId }: { eventId: string }) {
   const { companyId, openEvent, isSaved, toggleSaved } = useWorkspace()
   // итог или, пока его нет, последний непроверенный черновик
-  const { result: data, draft, stage } = useEventInterpretation()
+  const { result: data, draft, stage, animate } = useEventInterpretation()
   const { data: article } = useArticle(eventId)
   const { data: newsSources } = useNewsSources()
 
@@ -77,7 +78,7 @@ function Interpretation({ eventId }: { eventId: string }) {
           <div className={s.col} style={{ gap: 8 }}>
             <p className={s.eyebrow}>✦ ГЛАВНОЕ ДЛЯ КОМПАНИИ</p>
             <h2 className={`${s.limeTitle} ${s.limeTitleSm}`}>
-              {firstSentence(insight.ai_interpretation)}
+              <Typewriter text={firstSentence(insight.ai_interpretation)} animate={animate} />
             </h2>
           </div>
         </section>
@@ -92,6 +93,7 @@ function Interpretation({ eventId }: { eventId: string }) {
               insight={insight}
               sources={data?.sources ?? []}
               verification={data?.verification ?? null}
+              animate={animate}
               draft={!data}
             />
           ) : (
@@ -175,13 +177,18 @@ function Blocks({
   sources,
   verification,
   draft,
+  animate,
 }: {
   insight: InsightDraft
   sources: InterpretationSource[]
   verification: Verification | null
   /** Черновик ещё проверяется — источники появятся в итоговом результате */
   draft: boolean
+  /** Текст пришёл из потока сейчас — печатаем его */
+  animate: boolean
 }) {
+  // разделы печатаются по очереди, каждый со своей задержкой
+  const at = (block: number) => ({ animate, delay: block * 300 })
   const newsRefs = sources.map((x) => x.title).join('; ')
   const aiBasis = draft
     ? 'Вывод модели · черновик, проверяется'
@@ -198,7 +205,7 @@ function Blocks({
       question: 'Что произошло',
       origin: 'fact',
       label: 'Факт из первоисточника',
-      body: <List items={insight.facts} />,
+      body: <List items={insight.facts} {...at(0)} />,
       basis: newsRefs ? `Основание: ${newsRefs}` : 'Основание: публикация источника',
     },
     {
@@ -207,8 +214,13 @@ function Blocks({
       label: 'Аналитика банка',
       body: (
         <p className="t-15">
-          {insight.bank_position ??
-            'Подтверждённых материалов банка по событию нет — позиция банка не сформирована, AI её не заменяет.'}
+          <Typewriter
+            text={
+              insight.bank_position ??
+              'Подтверждённых материалов банка по событию нет — позиция банка не сформирована, AI её не заменяет.'
+            }
+            {...at(1)}
+          />
         </p>
       ),
       basis: 'Основание: каталог аналитики банка',
@@ -217,7 +229,11 @@ function Blocks({
       question: 'Что это значит для компании',
       origin: 'ai',
       label: 'Вывод AI',
-      body: <p className="t-15">{insight.ai_interpretation}</p>,
+      body: (
+        <p className="t-15">
+          <Typewriter text={insight.ai_interpretation} {...at(2)} />
+        </p>
+      ),
       basis: aiBasis,
     },
   ]
@@ -231,13 +247,13 @@ function Blocks({
           {!!insight.risks?.length && (
             <>
               <p className="t-15 t-semibold">△ Риски</p>
-              <List items={insight.risks} />
+              <List items={insight.risks} {...at(3)} />
             </>
           )}
           {!!insight.opportunities?.length && (
             <>
               <p className="t-15 t-semibold">↗ Возможности</p>
-              <List items={insight.opportunities} />
+              <List items={insight.opportunities} {...at(3)} />
             </>
           )}
         </>
@@ -249,7 +265,7 @@ function Blocks({
       question: 'Что можно сделать',
       origin: 'ai',
       label: 'Вывод AI · не рекомендация',
-      body: <List items={insight.suggested_actions} />,
+      body: <List items={insight.suggested_actions} {...at(4)} />,
       basis: aiBasis,
     })
 
@@ -282,7 +298,9 @@ function Blocks({
                   <OriginTag origin={originOf[c.kind]}>
                     {c.kind === 'fact' ? 'Факт' : c.kind === 'bank_position' ? 'Банк' : 'AI'}
                   </OriginTag>
-                  <span className="t-15">{c.text}</span>
+                  <span className="t-15">
+                    <Typewriter text={c.text!} animate={animate} delay={1500 + i * 150} />
+                  </span>
                 </span>
                 {!!c.evidence_refs?.length && (
                   <span className={s.basis}>
@@ -301,13 +319,22 @@ function Blocks({
 /** Главное для компании — первое предложение вывода, полный текст ниже в разделе 03 */
 const firstSentence = (text: string) => /^.+?[.!?](?=\s|$)/s.exec(text)?.[0] ?? text
 
-function List({ items = [] }: { items?: string[] }) {
+function List({
+  items = [],
+  animate = false,
+  delay = 0,
+}: {
+  items?: string[]
+  animate?: boolean
+  delay?: number
+}) {
   if (!items.length) return <p className="t-15 c-muted">Нет данных</p>
   return (
     <ul className={s.numbered}>
-      {items.map((x) => (
-        <li key={x} className="t-15">
-          {x}
+      {/* ключ по позиции: новый черновик допечатывает пункт, а не начинает его заново */}
+      {items.map((x, i) => (
+        <li key={i} className="t-15">
+          <Typewriter text={x} animate={animate} delay={delay + i * 150} />
         </li>
       ))}
     </ul>

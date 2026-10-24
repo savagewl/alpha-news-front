@@ -158,6 +158,24 @@ input {
   animation-delay: calc(min(var(--i, 0), 8) * 45ms);
 }
 
+/* Курсор печатной машинки у текста, который ещё допечатывается */
+.tw-caret {
+  display: inline-block;
+  width: 0.5em;
+  height: 1em;
+  margin-left: 1px;
+  vertical-align: -0.12em;
+  background: currentColor;
+  opacity: 0.55;
+  animation: caret 0.9s steps(1) infinite;
+}
+
+@keyframes caret {
+  50% {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

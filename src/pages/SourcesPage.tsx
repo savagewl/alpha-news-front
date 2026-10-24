@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import { useAuth } from '../auth/context'
 import { ApiError } from '../api/client'
@@ -18,6 +18,7 @@ import type {
   InterpretationSource,
 } from '../api/companyNewsTypes'
 import { Feedback } from '../components/Feedback'
+import { Typewriter } from '../components/Typewriter'
 import { Icon } from '../components/Icons'
 import { OpenPdf } from '../components/OpenPdf'
 import { Legend, OriginTag, Panel, Skeleton, StateCard, Tag } from '../components/ui'
@@ -58,6 +59,9 @@ function Dialog({ eventId }: { eventId: string }) {
   const ask = useAsk(companyId, eventId, threadId, saveThread)
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  // ответы, которые уже были в истории при открытии, не перепечатываем — только новые;
+  // без треда истории нет, поэтому всё, что придёт, — новое
+  const known = useRef<Set<string> | null>(threadId ? null : new Set())
 
   useEffect(() => openEvent(eventId), [eventId, openEvent])
 
@@ -82,6 +86,7 @@ function Dialog({ eventId }: { eventId: string }) {
   const canAsk = data.status === 'ready' && !!data.interpretation
 
   const messages = history.data?.messages ?? []
+  if (history.data && !known.current) known.current = new Set(messages.map((m) => m.id))
   const questions = messages.filter((m) => m.role === 'user')
   const answerTo = (q: ChatMessage) =>
     messages.find((m) => m.role === 'assistant' && m.reply_to_id === q.id)
@@ -145,6 +150,7 @@ function Dialog({ eventId }: { eventId: string }) {
               answer={answerTo(q)}
               roleLabel={roleLabel}
               companyId={companyId}
+              fresh={!known.current?.has(answerTo(q)?.id ?? '')}
             />
           ))}
 
@@ -246,11 +252,14 @@ function Exchange({
   answer: a,
   roleLabel,
   companyId,
+  fresh,
 }: {
   question: ChatMessage
   answer: ChatMessage | undefined
   roleLabel: string
   companyId: string
+  /** Ответ пришёл сейчас — печатаем его */
+  fresh: boolean
 }) {
   const origin = originOf[a?.answer_kind ?? 'ai_inference']
   return (
@@ -269,7 +278,7 @@ function Exchange({
         <section className={`${s.block} appear`}>
           <OriginTag origin={origin}>{originLabel[origin]}</OriginTag>
           <p className="t-15" style={{ whiteSpace: 'pre-line' }}>
-            {a.content}
+            <Typewriter text={a.content} animate={fresh} />
           </p>
           {!!a.warnings?.length && <p className="t-12 c-muted">{a.warnings.join(' · ')}</p>}
           {!!a.sources?.length && (

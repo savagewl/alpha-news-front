@@ -65,6 +65,8 @@ export interface LiveInterpretation {
   error: StreamError | null
   /** Поток оборвался без done и без итога */
   interrupted: boolean
+  /** Текст пришёл из потока сейчас — печатаем его; из кеша показываем сразу */
+  animate: boolean
   retry: () => void
 }
 
@@ -87,6 +89,7 @@ export function useInterpretationLive(companyId: string, newsId: string): LiveIn
   const [error, setError] = useState<StreamError | null>(null)
   const [interrupted, setInterrupted] = useState(false)
   const [attempt, setAttempt] = useState(0)
+  const [animate, setAnimate] = useState(false)
 
   useEffect(() => {
     if (!companyId || !newsId) return
@@ -103,9 +106,14 @@ export function useInterpretationLive(companyId: string, newsId: string): LiveIn
       {
         onStage: setStage,
         // новый снимок полностью заменяет предыдущий
-        onDraft: setDraft,
+        onDraft: (d) => {
+          setAnimate(true)
+          setDraft(d)
+        },
         onResult: (r) => {
           finished = true
+          // кеш может сразу вернуть result с reused — тогда без печати
+          if (!r.reused) setAnimate(true)
           qc.setQueryData(key, r)
           setDraft(null)
         },
@@ -139,7 +147,7 @@ export function useInterpretationLive(companyId: string, newsId: string): LiveIn
     setAttempt((n) => n + 1)
   }, [qc, companyId, newsId])
 
-  return { result, draft: result ? null : draft, stage, error, interrupted, retry }
+  return { result, draft: result ? null : draft, stage, error, interrupted, animate, retry }
 }
 
 /** Понятная причина, почему разбор не получен */
