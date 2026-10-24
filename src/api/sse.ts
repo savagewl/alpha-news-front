@@ -42,3 +42,21 @@ export function createSseParser(onEvent: (e: SseEvent) => void) {
     },
   }
 }
+
+/** Читает тело ответа до конца и отдаёт события по одному */
+export async function readSse(body: ReadableStream<Uint8Array>, onEvent: (e: SseEvent) => void) {
+  const parser = createSseParser(onEvent)
+  const reader = body.getReader()
+  // stream: true — многобайтовый символ UTF-8 может разрезаться между chunk'ами
+  const decoder = new TextDecoder()
+  try {
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) break
+      parser.push(decoder.decode(value, { stream: true }))
+    }
+  } finally {
+    parser.flush()
+    reader.releaseLock()
+  }
+}

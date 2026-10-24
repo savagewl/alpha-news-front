@@ -3,20 +3,22 @@ import { useParams } from 'react-router-dom'
 import { useArticle, useNewsSources } from '../api/articleHooks'
 import { formatDate } from '../api/companyFormat'
 import { originOf, refLabel, verificationLabel } from '../api/companyNewsFormat'
-import { useInterpretation } from '../api/companyNewsHooks'
-import type { InterpretationResult } from '../api/companyNewsTypes'
+import type { InsightDraft, InterpretationSource, Verification } from '../api/companyNewsTypes'
+import { stageLabel } from '../api/interpretationStream'
 import type { Origin } from '../api/newsTypes'
 import { Feedback } from '../components/Feedback'
 import { Button, Legend, OriginTag, Panel, StateCard, Tag } from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
 import { useWorkspace } from '../state/context'
+import { useEventInterpretation } from './eventContext'
 import { EventGuard } from './EventGuard'
+import h from './digest.module.css'
 import s from './pages.module.css'
 
 export default function EventPage() {
   const { eventId = '' } = useParams()
   return (
-    <EventGuard eventId={eventId} crumb="Интерпретация">
+    <EventGuard eventId={eventId} crumb="Интерпретация" allowDraft>
       <Interpretation eventId={eventId} />
     </EventGuard>
   )
@@ -24,14 +26,15 @@ export default function EventPage() {
 
 function Interpretation({ eventId }: { eventId: string }) {
   const { companyId, openEvent, isSaved, toggleSaved } = useWorkspace()
-  const { data } = useInterpretation(companyId, eventId)
+  // итог или, пока его нет, последний непроверенный черновик
+  const { result: data, draft, stage } = useEventInterpretation()
   const { data: article } = useArticle(eventId)
   const { data: newsSources } = useNewsSources()
 
   useEffect(() => openEvent(eventId), [eventId, openEvent])
 
-  if (!data) return null
-  const insight = data.interpretation
+  const insight: InsightDraft | null | undefined = data ? data.interpretation : draft?.draft
+  if (!data && !insight) return null
   const saved = isSaved(eventId)
   const sourceName =
     article &&
@@ -48,17 +51,26 @@ function Interpretation({ eventId }: { eventId: string }) {
         <div className={s.row}>
           {!!insight?.risks?.length && <Tag variant="red">Риск</Tag>}
           {!!insight?.opportunities?.length && <Tag variant="green">Возможность</Tag>}
-          {data.verification && (
+          {data?.verification && (
             <Tag variant={data.verification.status === 'APPROVED' ? 'green' : 'neutral'}>
               {verificationLabel[data.verification.status]}
             </Tag>
           )}
-          {data.is_demo && <Tag>Демо-ответ</Tag>}
+          {data?.is_demo && <Tag>Демо-ответ</Tag>}
+          {!data && <Tag variant="dark">Черновик · не проверен</Tag>}
         </div>
         <Button pressed={saved} onClick={() => toggleSaved(eventId)}>
           {saved ? '★ Сохранено' : '☆ Сохранить'}
         </Button>
       </PageHead>
+
+      {!data && (
+        <p className={`${h.stage} t-13`} role="status">
+          <span className={h.stageDot} aria-hidden />
+          {stage ? stageLabel[stage] : 'Проверяем черновик'}… Текст может измениться после проверки
+          {draft && draft.revision_version > 0 && ` · доработка ${draft.revision_version}`}
+        </p>
+      )}
 
       {insight && (
         <section className={s.lime} style={{ padding: '24px 20px' }}>
@@ -76,33 +88,40 @@ function Interpretation({ eventId }: { eventId: string }) {
       <div className={s.split}>
         <div className={s.col}>
           {insight ? (
-            <Blocks data={data} />
-          ) : (
-            <StateCard
-              kind="insufficient"
-              title="Для полного разбора не хватает данных"
-              text={
-                data.status === 'insufficient'
-                  ? 'Подтверждённых доказательств недостаточно — непроверенный вывод не публикуется.'
-                  : 'Черновик разбора не прошёл проверку верификатором и не публикуется.'
-              }
-              note={
-                [
-                  ...(data.verification?.remarks ?? []),
-                  ...(data.verification?.missing_evidence ?? []),
-                ].join(' · ') || undefined
-              }
-              action={
-                <div className={s.row}>
-                  {article && (
-                    <Button variant="primary" to={`/articles/${eventId}`}>
-                      Открыть публикацию →
-                    </Button>
-                  )}
-                  <Button to="/profile">Уточнить профиль</Button>
-                </div>
-              }
+            <Blocks
+              insight={insight}
+              sources={data?.sources ?? []}
+              verification={data?.verification ?? null}
+              draft={!data}
             />
+          ) : (
+            data && (
+              <StateCard
+                kind="insufficient"
+                title="Для полного разбора не хватает данных"
+                text={
+                  data.status === 'insufficient'
+                    ? 'Подтверждённых доказательств недостаточно — непроверенный вывод не публикуется.'
+                    : 'Черновик разбора не прошёл проверку верификатором и не публикуется.'
+                }
+                note={
+                  [
+                    ...(data.verification?.remarks ?? []),
+                    ...(data.verification?.missing_evidence ?? []),
+                  ].join(' · ') || undefined
+                }
+                action={
+                  <div className={s.row}>
+                    {article && (
+                      <Button variant="primary" to={`/articles/${eventId}`}>
+                        Открыть публикацию →
+                      </Button>
+                    )}
+                    <Button to="/profile">Уточнить профиль</Button>
+                  </div>
+                }
+              />
+            )
           )}
 
           <Feedback key={eventId} question="Разбор полезен для вашего решения?" />
@@ -114,12 +133,13 @@ function Interpretation({ eventId }: { eventId: string }) {
             <Tag>{companyId}</Tag>
             <p className="t-13">
               Разбор построен по профилю {companyId}: отрасль, регион, продукты банка и платёжные
-              связи. Модель: {data.model}
-              {data.generated_at && ` · ${formatDate(data.generated_at)}`}.
+              связи.
+              {data && ` Модель: ${data.model}`}
+              {data?.generated_at && ` · ${formatDate(data.generated_at)}`}
             </p>
             <Button to="/profile">Профиль компании →</Button>
           </Panel>
-          {(!!insight?.limitations?.length || !!data.warnings?.length) && (
+          {(!!insight?.limitations?.length || !!data?.warnings?.length) && (
             <Panel>
               <h2 className="t-h2">Границы вывода</h2>
               {insight?.limitations?.map((l) => (
@@ -127,7 +147,7 @@ function Interpretation({ eventId }: { eventId: string }) {
                   {l}
                 </p>
               ))}
-              {data.warnings?.map((w) => (
+              {data?.warnings?.map((w) => (
                 <p key={w} className="t-12 c-muted">
                   {w}
                 </p>
@@ -150,11 +170,22 @@ function Interpretation({ eventId }: { eventId: string }) {
 }
 
 /** Разделы разбора: каждый помечен происхождением — факт, позиция банка или вывод AI */
-function Blocks({ data }: { data: InterpretationResult }) {
-  const insight = data.interpretation!
-  const sources = data.sources ?? []
+function Blocks({
+  insight,
+  sources,
+  verification,
+  draft,
+}: {
+  insight: InsightDraft
+  sources: InterpretationSource[]
+  verification: Verification | null
+  /** Черновик ещё проверяется — источники появятся в итоговом результате */
+  draft: boolean
+}) {
   const newsRefs = sources.map((x) => x.title).join('; ')
-  const aiBasis = `Вывод модели · ${data.verification ? verificationLabel[data.verification.status].toLowerCase() : 'не проверен'}`
+  const aiBasis = draft
+    ? 'Вывод модели · черновик, проверяется'
+    : `Вывод модели · ${verification ? verificationLabel[verification.status].toLowerCase() : 'не проверен'}`
 
   const blocks: {
     question: string

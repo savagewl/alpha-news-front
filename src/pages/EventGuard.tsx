@@ -1,35 +1,37 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
-import { interpretationError, useCompanyNewsHead, useInterpretation } from '../api/companyNewsHooks'
+import { useCompanyNewsHead } from '../api/companyNewsHooks'
+import { streamErrorText, useInterpretationLive } from '../api/interpretationStream'
 import { Button, StateCard } from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
 import { useWorkspace } from '../state/context'
+import { EventInterpretationContext } from './eventContext'
 import s from './pages.module.css'
 import { EventSkeleton } from './Skeletons'
 
 /**
  * Общая обвязка экранов одной новости (разбор, источники, Agent Trace):
- * без id ведёт к последней открытой или главной новости сводки, ждёт AI-интерпретацию
- * в контексте выбранной компании и показывает загрузку и ошибку.
+ * без id ведёт к последней открытой или главной новости сводки, получает AI-интерпретацию
+ * потоком в контексте выбранной компании и показывает этапы, ошибку и обрыв.
  */
 export function EventGuard({
   eventId,
   crumb,
   basePath,
+  allowDraft,
   children,
 }: {
   eventId: string
   crumb: string
   /** Путь экрана без id — для перехода к новости по умолчанию */
   basePath?: string
+  /** Экран умеет показывать непроверенный черновик, пока идёт проверка */
+  allowDraft?: boolean
   children: ReactNode
 }) {
   const { companyId, lastEventId } = useWorkspace()
   const head = useCompanyNewsHead(companyId, { relevant_only: true })
-  const { data, isPending, isError, error, refetch } = useInterpretation(
-    companyId,
-    eventId || undefined,
-  )
+  const live = useInterpretationLive(companyId, eventId)
 
   if (!eventId) {
     const fallback = lastEventId ?? head.data?.items[0]?.id
@@ -50,7 +52,7 @@ export function EventGuard({
           />
         </>
       )
-    return <Loading crumb={crumb} />
+    return <EventSkeleton crumb={crumb} />
   }
 
   if (!companyId)
@@ -66,19 +68,25 @@ export function EventGuard({
       </>
     )
 
-  if (isPending || data?.status === 'generating') return <Loading crumb={crumb} />
-
-  if (isError || !data)
+  if (!live.result && (live.error || live.interrupted))
     return (
       <>
         <PageHead crumb={crumb} title="Событие недоступно" subtitle="Не удалось получить разбор" />
         <StateCard
           kind="error"
-          title="Разбор не сформирован"
-          text={interpretationError(error)}
+          title={live.interrupted ? 'Разбор прервался' : 'Разбор не сформирован'}
+          text={
+            live.interrupted
+              ? 'Соединение оборвалось до готового результата. Черновик не показываем — он не прошёл проверку.'
+              : streamErrorText(live.error!)
+          }
           action={
             <div className={s.row}>
-              <Button onClick={() => refetch()}>Повторить</Button>
+              {(live.interrupted || live.error?.retryable !== false) && (
+                <Button variant="primary" onClick={live.retry}>
+                  Повторить
+                </Button>
+              )}
               <Button to="/digest">К сводке</Button>
             </div>
           }
@@ -86,9 +94,12 @@ export function EventGuard({
       </>
     )
 
-  return children
-}
+  if (!live.result && !(allowDraft && live.draft))
+    return <EventSkeleton crumb={crumb} stage={live.stage} />
 
-function Loading({ crumb }: { crumb: string }) {
-  return <EventSkeleton crumb={crumb} />
+  return (
+    <EventInterpretationContext.Provider value={live}>
+      {children}
+    </EventInterpretationContext.Provider>
+  )
 }

@@ -8,7 +8,7 @@ import type {
   CompanyNewsItem,
   InterpretationSource,
 } from './companyNewsTypes'
-import { createSseParser } from './sse'
+import { readSse } from './sse'
 
 /** Состояние оценки карточки на фронте; interrupted — поток оборвался до итога */
 export type CardAssessment =
@@ -82,7 +82,7 @@ export async function streamAssessments(
     signal,
   )
   let done: AssessmentDone | null = null
-  const parser = createSseParser(({ event, data }) => {
+  await readSse(body, ({ event, data }) => {
     try {
       if (event === 'assessment') onAssessment(JSON.parse(data) as AssessmentEvent)
       else if (event === 'done') done = JSON.parse(data) as AssessmentDone
@@ -90,19 +90,6 @@ export async function streamAssessments(
       // битое событие пропускаем — карточка останется без итога и будет помечена прерванной
     }
   })
-  const reader = body.getReader()
-  // stream: true — многобайтовый символ UTF-8 может разрезаться между chunk'ами
-  const decoder = new TextDecoder()
-  try {
-    for (;;) {
-      const { value, done: end } = await reader.read()
-      if (end) break
-      parser.push(decoder.decode(value, { stream: true }))
-    }
-  } finally {
-    parser.flush()
-    reader.releaseLock()
-  }
   return done
 }
 

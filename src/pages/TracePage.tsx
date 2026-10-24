@@ -8,11 +8,11 @@ import {
   stepTitle,
   verificationLabel,
 } from '../api/companyNewsFormat'
-import { useInterpretation } from '../api/companyNewsHooks'
 import { Button, Divider, Field, Panel, StateCard, Tag } from '../components/ui'
 import { cx } from '../components/cx'
 import { PageHead } from '../layout/AppLayout'
 import { useWorkspace } from '../state/context'
+import { useEventInterpretation } from './eventContext'
 import { EventGuard } from './EventGuard'
 import s from './pages.module.css'
 
@@ -27,7 +27,7 @@ export default function TracePage() {
 
 function TraceView({ eventId }: { eventId: string }) {
   const { companyId, openEvent } = useWorkspace()
-  const { data } = useInterpretation(companyId, eventId)
+  const { result: data } = useEventInterpretation()
 
   useEffect(() => openEvent(eventId), [eventId, openEvent])
 

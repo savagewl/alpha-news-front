@@ -1,5 +1,7 @@
 // Скелетоны экранов, которые ждут бэк, LLM или BGE: повторяют раскладку страницы,
 // чтобы при появлении данных ничего не прыгало.
+import type { InterpretationStage } from '../api/companyNewsTypes'
+import { stageLabel } from '../api/interpretationStream'
 import { SkeletonBar, SkeletonCard } from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
 import h from './digest.module.css'
@@ -32,14 +34,27 @@ export function DigestSkeleton({ note }: { note: string }) {
 }
 
 /** Экраны события (разбор, источники, trace), пока AI готовит интерпретацию */
-export function EventSkeleton({ crumb }: { crumb: string }) {
+export function EventSkeleton({
+  crumb,
+  stage,
+}: {
+  crumb: string
+  /** Текущий этап потока — показываем, чем сейчас занят AI */
+  stage?: InterpretationStage | null
+}) {
   return (
     <>
       <PageHead
         crumb={crumb}
         title={<SkeletonBar width="min(560px, 80%)" height={30} />}
-        subtitle="AI готовит разбор: анализ → проверка верификатором → доработка. Первый разбор занимает до минуты, повторный открывается сразу."
+        subtitle="AI готовит разбор: черновик → проверка верификатором → доработка. Первый разбор занимает до полутора минут, повторный открывается сразу."
       />
+      {stage && (
+        <p className={`${h.stage} t-13`} role="status">
+          <span className={h.stageDot} aria-hidden />
+          {stageLabel[stage]}…
+        </p>
+      )}
       <div aria-busy role="status" className={s.col}>
         <SkeletonCard lines={2} />
         <div className={s.split}>

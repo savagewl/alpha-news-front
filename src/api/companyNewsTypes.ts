@@ -249,3 +249,20 @@ export interface AssessmentDone {
   total: number
   counts: Partial<Record<string, number>>
 }
+
+/** Этап потока POST /companies/{id}/news/{news_id}/interpretation/stream */
+export type InterpretationStage =
+  'preparing' | 'generating' | 'verifying' | 'revising' | 'retrieving' | 'waiting'
+
+/** Снимок черновика: каждый следующий полностью заменяет предыдущий */
+export interface InterpretationDraft {
+  draft: InsightDraft
+  revision_version: number
+  verified: false
+}
+
+export interface StreamError {
+  detail?: string
+  http_status?: number
+  retryable?: boolean
+}

@@ -131,10 +131,11 @@ export async function openStream(
     signal,
     headers: {
       Accept: 'text/event-stream',
-      'Content-Type': 'application/json',
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify(body),
+    // у потока интерпретации тела нет
+    body: body === undefined ? undefined : JSON.stringify(body),
   })
   const type = res.headers.get('Content-Type') ?? ''
   if (!res.ok || !type.includes('text/event-stream') || !res.body) {

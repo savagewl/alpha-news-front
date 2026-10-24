@@ -11,7 +11,6 @@ import type {
   CompanyNewsPage,
   CompanyNewsQuery,
   DocumentPassage,
-  InterpretationResult,
 } from './companyNewsTypes'
 
 const newsPath = (companyId: string, newsId?: string) =>
@@ -21,9 +20,6 @@ const newsPath = (companyId: string, newsId?: string) =>
 export const companyNewsApi = {
   list: (companyId: string, q: CompanyNewsQuery, signal?: AbortSignal) =>
     api.get<CompanyNewsPage>(newsPath(companyId), { ...q }, signal),
-  // Первый вызов ждёт LLM, повторный отдаёт кеш — тела запроса нет
-  interpretation: (companyId: string, newsId: string) =>
-    api.post<InterpretationResult>(`${newsPath(companyId, newsId)}/interpretation`),
   createThread: (companyId: string, newsId: string) =>
     api.post<ChatThread>(`${newsPath(companyId, newsId)}/chat/threads`),
   history: (companyId: string, newsId: string, threadId: string, signal?: AbortSignal) =>
@@ -88,22 +84,8 @@ export const useCompanyNewsHead = (companyId: string, q: CompanyNewsQuery = {}, 
     refetchInterval: poll ? pollMs : false,
   })
 
-/** Пока идёт генерация, опрашиваем с этим интервалом */
+/** Пока ответ чата генерируется, опрашиваем историю с этим интервалом */
 const generatingPollMs = 3_000
-
-export const useInterpretation = (companyId: string, newsId: string | undefined) =>
-  useQuery({
-    queryKey: companyNewsKeys.interpretation(companyId, newsId ?? ''),
-    queryFn: () => companyNewsApi.interpretation(companyId, newsId!),
-    enabled: !!companyId && !!newsId,
-    // бэк кеширует результат сам, повторные POST дешёвые
-    staleTime: 5 * 60_000,
-    refetchInterval: (query) =>
-      query.state.data?.status === 'generating' ? generatingPollMs : false,
-    // 409 — генерация уже запущена другим запросом, ждём её
-    retry: (count, error) => error instanceof ApiError && error.status === 409 && count < 10,
-    retryDelay: generatingPollMs,
-  })
 
 /** Понятная причина, почему разбор не получен */
 export function interpretationError(error: unknown): string {

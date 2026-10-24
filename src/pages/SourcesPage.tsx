@@ -10,7 +10,6 @@ import {
   useAnalyticsDocuments,
   useAsk,
   useChatHistory,
-  useInterpretation,
 } from '../api/companyNewsHooks'
 import type {
   AnalyticsDocument,
@@ -24,6 +23,7 @@ import { OpenPdf } from '../components/OpenPdf'
 import { Legend, OriginTag, Panel, Skeleton, StateCard, Tag } from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
 import { useWorkspace } from '../state/context'
+import { useEventInterpretation } from './eventContext'
 import { EventGuard } from './EventGuard'
 import s from './pages.module.css'
 
@@ -48,7 +48,7 @@ function Dialog({ eventId }: { eventId: string }) {
   const { companyId, openEvent } = useWorkspace()
   const { user } = useAuth()
   const userId = user?.id ?? 'guest'
-  const { data } = useInterpretation(companyId, eventId)
+  const { result: data } = useEventInterpretation()
   const [threadId, setThreadId] = useState(() => threadStorage.get(userId, companyId, eventId))
   const history = useChatHistory(companyId, eventId, threadId)
   const saveThread = (id: string | null) => {
