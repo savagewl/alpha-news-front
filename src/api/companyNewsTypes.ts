@@ -261,6 +261,21 @@ export interface InterpretationDraft {
   verified: false
 }
 
+/** Строковые поля черновика дописываются целиком, списочные — по индексу пункта */
+export type DeltaTextField = 'headline' | 'ai_interpretation' | 'bank_position'
+export type DeltaListField =
+  'facts' | 'risks' | 'opportunities' | 'suggested_actions' | 'limitations'
+
+/** Фрагмент текста черновика: дописывается к полю активной версии */
+export interface InterpretationDelta {
+  revision_version: number
+  field: DeltaTextField | DeltaListField
+  /** Есть только у списочных полей */
+  index?: number
+  text: string
+  verified: false
+}
+
 export interface StreamError {
   detail?: string
   http_status?: number

@@ -1,10 +1,12 @@
-// Подробная AI-интерпретация новости потоком: этапы, черновики по мере доработки
-// и итоговый результат. Подтверждён только result со status === 'ready'.
+// Подробная AI-интерпретация новости потоком: этапы, текст черновика фрагментами по мере
+// генерации и итоговый результат. Подтверждён только result со status === 'ready'.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError, openStream } from './client'
 import { companyNewsKeys } from './companyNewsHooks'
 import type {
+  InsightDraft,
+  InterpretationDelta,
   InterpretationDraft,
   InterpretationResult,
   InterpretationStage,
@@ -23,6 +25,9 @@ export const stageLabel: Record<InterpretationStage, string> = {
 
 interface Handlers {
   onStage: (stage: InterpretationStage) => void
+  /** Началась новая версия черновика — прежний текст больше не нужен */
+  onReset: (revision: number) => void
+  onDelta: (delta: InterpretationDelta) => void
   onDraft: (draft: InterpretationDraft) => void
   onResult: (result: InterpretationResult) => void
   onError: (error: StreamError) => void
@@ -45,6 +50,8 @@ export async function streamInterpretation(
     try {
       const json = data ? JSON.parse(data) : {}
       if (event === 'progress') h.onStage((json as { stage: InterpretationStage }).stage)
+      else if (event === 'reset') h.onReset((json as { revision_version: number }).revision_version)
+      else if (event === 'delta') h.onDelta(json as InterpretationDelta)
       else if (event === 'draft') h.onDraft(json as InterpretationDraft)
       else if (event === 'result') h.onResult(json as InterpretationResult)
       else if (event === 'error') h.onError(json as StreamError)
@@ -56,17 +63,53 @@ export async function streamInterpretation(
   return done
 }
 
+/** Пустой черновик новой версии: поля заполняются фрагментами delta */
+export const emptyDraft = (revision: number): InterpretationDraft => ({
+  revision_version: revision,
+  verified: false,
+  draft: {
+    headline: '',
+    ai_interpretation: '',
+    bank_position: null,
+    facts: [],
+    risks: [],
+    opportunities: [],
+    suggested_actions: [],
+    limitations: [],
+  },
+})
+
+/** Дописывает фрагмент к полю черновика на месте; фрагменты чужой версии пропускает */
+export function applyDelta(target: InterpretationDraft, delta: InterpretationDelta): boolean {
+  if (delta.revision_version !== target.revision_version) return false
+  const d = target.draft
+  const { field, index, text } = delta
+  if (field === 'headline' || field === 'ai_interpretation' || field === 'bank_position') {
+    d[field] = (d[field] ?? '') + text
+  } else if (index !== undefined) {
+    const list = (d[field] ??= [])
+    list[index] = (list[index] ?? '') + text
+  }
+  return true
+}
+
+/** Копия для React: поля и списки новые, чтобы изменение было заметно */
+const snapshot = (x: InterpretationDraft): InterpretationDraft => {
+  const d: InsightDraft = { ...x.draft }
+  for (const k of ['facts', 'risks', 'opportunities', 'suggested_actions', 'limitations'] as const)
+    if (d[k]) d[k] = Array.from(d[k], (v) => v ?? '')
+  return { ...x, draft: d }
+}
+
 export interface LiveInterpretation {
   /** Итог: ready, needs_revision или insufficient */
   result: InterpretationResult | undefined
-  /** Последний непроверенный черновик — пока нет итога */
+  /** Непроверенный черновик, который сейчас пишется, — пока нет итога */
   draft: InterpretationDraft | null
   stage: InterpretationStage | null
   error: StreamError | null
   /** Поток оборвался без done и без итога */
   interrupted: boolean
-  /** Текст пришёл из потока сейчас — печатаем его; из кеша показываем сразу */
-  animate: boolean
   retry: () => void
 }
 
@@ -89,13 +132,26 @@ export function useInterpretationLive(companyId: string, newsId: string): LiveIn
   const [error, setError] = useState<StreamError | null>(null)
   const [interrupted, setInterrupted] = useState(false)
   const [attempt, setAttempt] = useState(0)
-  const [animate, setAnimate] = useState(false)
 
   useEffect(() => {
     if (!companyId || !newsId) return
     if (qc.getQueryData<InterpretationResult>(key)) return
     const ctrl = new AbortController()
     let finished = false
+    // черновик копится здесь, в React уходит не чаще раза за кадр
+    let live: InterpretationDraft | null = null
+    let frame = 0
+    const cancelFlush = () => {
+      cancelAnimationFrame(frame)
+      frame = 0
+    }
+    const scheduleFlush = () => {
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        setDraft(live && snapshot(live))
+      })
+    }
     setDraft(null)
     setStage(null)
     setError(null)
@@ -105,20 +161,32 @@ export function useInterpretationLive(companyId: string, newsId: string): LiveIn
       newsId,
       {
         onStage: setStage,
-        // новый снимок полностью заменяет предыдущий
+        // новая версия: прежний текст и его отложенный показ отбрасываем
+        onReset: (revision) => {
+          cancelFlush()
+          live = emptyDraft(revision)
+          setDraft(snapshot(live))
+        },
+        onDelta: (delta) => {
+          if (live && applyDelta(live, delta)) scheduleFlush()
+        },
+        // полный снимок заменяет накопленный текст, а не дописывается к нему
         onDraft: (d) => {
-          setAnimate(true)
-          setDraft(d)
+          if (live && d.revision_version !== live.revision_version) return
+          live = d
+          scheduleFlush()
         },
         onResult: (r) => {
           finished = true
-          // кеш может сразу вернуть result с reused — тогда без печати
-          if (!r.reused) setAnimate(true)
+          cancelFlush()
+          live = null
           qc.setQueryData(key, r)
           setDraft(null)
         },
         onError: (e) => {
           finished = true
+          cancelFlush()
+          live = null
           setError(e)
         },
       },
@@ -137,7 +205,10 @@ export function useInterpretationLive(companyId: string, newsId: string): LiveIn
           retryable: !(err instanceof ApiError && [404, 422].includes(err.status)),
         })
       })
-    return () => ctrl.abort()
+    return () => {
+      ctrl.abort()
+      cancelFlush()
+    }
     // key выводится из companyId и newsId
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId, newsId, attempt, qc])
@@ -147,7 +218,7 @@ export function useInterpretationLive(companyId: string, newsId: string): LiveIn
     setAttempt((n) => n + 1)
   }, [qc, companyId, newsId])
 
-  return { result, draft: result ? null : draft, stage, error, interrupted, animate, retry }
+  return { result, draft: result ? null : draft, stage, error, interrupted, retry }
 }
 
 /** Понятная причина, почему разбор не получен */

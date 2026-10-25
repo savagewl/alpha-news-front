@@ -7,7 +7,7 @@ import type { InsightDraft, InterpretationSource, Verification } from '../api/co
 import { stageLabel } from '../api/interpretationStream'
 import type { Origin } from '../api/newsTypes'
 import { Feedback } from '../components/Feedback'
-import { Typewriter } from '../components/Typewriter'
+import { RichText } from '../components/Typewriter'
 import { Button, Legend, OriginTag, Panel, StateCard, Tag } from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
 import { useWorkspace } from '../state/context'
@@ -27,8 +27,8 @@ export default function EventPage() {
 
 function Interpretation({ eventId }: { eventId: string }) {
   const { companyId, openEvent, isSaved, toggleSaved } = useWorkspace()
-  // итог или, пока его нет, последний непроверенный черновик
-  const { result: data, draft, stage, animate } = useEventInterpretation()
+  // итог или, пока его нет, черновик, который сейчас пишется
+  const { result: data, draft, stage } = useEventInterpretation()
   const { data: article } = useArticle(eventId)
   const { data: newsSources } = useNewsSources()
 
@@ -46,7 +46,7 @@ function Interpretation({ eventId }: { eventId: string }) {
     <>
       <PageHead
         crumb="Интерпретация"
-        title={insight?.headline ?? article?.title ?? 'Разбор события'}
+        title={insight?.headline || article?.title || 'Разбор события'}
         subtitle={[companyId, date, sourceName].filter(Boolean).join(' · ')}
       >
         <div className={s.row}>
@@ -58,7 +58,7 @@ function Interpretation({ eventId }: { eventId: string }) {
             </Tag>
           )}
           {data?.is_demo && <Tag>Демо-ответ</Tag>}
-          {!data && <Tag variant="dark">Черновик · не проверен</Tag>}
+          {!data && <Tag variant="dark">Формируется · предварительный результат</Tag>}
         </div>
         <Button pressed={saved} onClick={() => toggleSaved(eventId)}>
           {saved ? '★ Сохранено' : '☆ Сохранить'}
@@ -73,12 +73,12 @@ function Interpretation({ eventId }: { eventId: string }) {
         </p>
       )}
 
-      {insight && (
+      {insight?.ai_interpretation && (
         <section className={s.lime} style={{ padding: '24px 20px' }}>
           <div className={s.col} style={{ gap: 8 }}>
             <p className={s.eyebrow}>✦ ГЛАВНОЕ ДЛЯ КОМПАНИИ</p>
             <h2 className={`${s.limeTitle} ${s.limeTitleSm}`}>
-              <Typewriter text={firstSentence(insight.ai_interpretation)} animate={animate} />
+              <RichText text={firstSentence(insight.ai_interpretation)} />
             </h2>
           </div>
         </section>
@@ -93,7 +93,6 @@ function Interpretation({ eventId }: { eventId: string }) {
               insight={insight}
               sources={data?.sources ?? []}
               verification={data?.verification ?? null}
-              animate={animate}
               draft={!data}
             />
           ) : (
@@ -177,18 +176,13 @@ function Blocks({
   sources,
   verification,
   draft,
-  animate,
 }: {
   insight: InsightDraft
   sources: InterpretationSource[]
   verification: Verification | null
-  /** Черновик ещё проверяется — источники появятся в итоговом результате */
+  /** Черновик ещё пишется и проверяется — источники появятся в итоговом результате */
   draft: boolean
-  /** Текст пришёл из потока сейчас — печатаем его */
-  animate: boolean
 }) {
-  // разделы печатаются по очереди, каждый со своей задержкой
-  const at = (block: number) => ({ animate, delay: block * 300 })
   const newsRefs = sources.map((x) => x.title).join('; ')
   const aiBasis = draft
     ? 'Вывод модели · черновик, проверяется'
@@ -205,7 +199,7 @@ function Blocks({
       question: 'Что произошло',
       origin: 'fact',
       label: 'Факт из первоисточника',
-      body: <List items={insight.facts} {...at(0)} />,
+      body: <List items={insight.facts} pending={draft} />,
       basis: newsRefs ? `Основание: ${newsRefs}` : 'Основание: публикация источника',
     },
     {
@@ -213,15 +207,14 @@ function Blocks({
       origin: 'bank',
       label: 'Аналитика банка',
       body: (
-        <p className="t-15">
-          <Typewriter
-            text={
-              insight.bank_position ??
-              'Подтверждённых материалов банка по событию нет — позиция банка не сформирована, AI её не заменяет.'
-            }
-            {...at(1)}
-          />
-        </p>
+        <Text
+          text={
+            insight.bank_position ||
+            (draft
+              ? ''
+              : 'Подтверждённых материалов банка по событию нет — позиция банка не сформирована, AI её не заменяет.')
+          }
+        />
       ),
       basis: 'Основание: каталог аналитики банка',
     },
@@ -229,11 +222,7 @@ function Blocks({
       question: 'Что это значит для компании',
       origin: 'ai',
       label: 'Вывод AI',
-      body: (
-        <p className="t-15">
-          <Typewriter text={insight.ai_interpretation} {...at(2)} />
-        </p>
-      ),
+      body: <Text text={insight.ai_interpretation} />,
       basis: aiBasis,
     },
   ]
@@ -247,13 +236,13 @@ function Blocks({
           {!!insight.risks?.length && (
             <>
               <p className="t-15 t-semibold">△ Риски</p>
-              <List items={insight.risks} {...at(3)} />
+              <List items={insight.risks} pending={draft} />
             </>
           )}
           {!!insight.opportunities?.length && (
             <>
               <p className="t-15 t-semibold">↗ Возможности</p>
-              <List items={insight.opportunities} {...at(3)} />
+              <List items={insight.opportunities} pending={draft} />
             </>
           )}
         </>
@@ -265,7 +254,7 @@ function Blocks({
       question: 'Что можно сделать',
       origin: 'ai',
       label: 'Вывод AI · не рекомендация',
-      body: <List items={insight.suggested_actions} {...at(4)} />,
+      body: <List items={insight.suggested_actions} pending={draft} />,
       basis: aiBasis,
     })
 
@@ -299,7 +288,7 @@ function Blocks({
                     {c.kind === 'fact' ? 'Факт' : c.kind === 'bank_position' ? 'Банк' : 'AI'}
                   </OriginTag>
                   <span className="t-15">
-                    <Typewriter text={c.text!} animate={animate} delay={1500 + i * 150} />
+                    <RichText text={c.text!} />
                   </span>
                 </span>
                 {!!c.evidence_refs?.length && (
@@ -319,22 +308,26 @@ function Blocks({
 /** Главное для компании — первое предложение вывода, полный текст ниже в разделе 03 */
 const firstSentence = (text: string) => /^.+?[.!?](?=\s|$)/s.exec(text)?.[0] ?? text
 
-function List({
-  items = [],
-  animate = false,
-  delay = 0,
-}: {
-  items?: string[]
-  animate?: boolean
-  delay?: number
-}) {
-  if (!items.length) return <p className="t-15 c-muted">Нет данных</p>
+/** Пустое поле черновика ещё пишется — не путаем его с отсутствием данных */
+const pendingText = <p className="t-15 c-muted">Формируется…</p>
+
+function Text({ text }: { text: string }) {
+  if (!text) return pendingText
+  return (
+    <p className="t-15">
+      <RichText text={text} />
+    </p>
+  )
+}
+
+function List({ items = [], pending = false }: { items?: string[]; pending?: boolean }) {
+  if (!items.length) return pending ? pendingText : <p className="t-15 c-muted">Нет данных</p>
   return (
     <ul className={s.numbered}>
-      {/* ключ по позиции: новый черновик допечатывает пункт, а не начинает его заново */}
+      {/* ключ по позиции: фрагмент дописывает пункт, а не создаёт его заново */}
       {items.map((x, i) => (
         <li key={i} className="t-15">
-          <Typewriter text={x} animate={animate} delay={delay + i * 150} />
+          <RichText text={x} />
         </li>
       ))}
     </ul>
