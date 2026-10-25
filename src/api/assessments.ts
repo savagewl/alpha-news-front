@@ -114,6 +114,8 @@ export function useAssessments(companyId: string, items: CompanyNewsItem[]) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const observer = useRef<IntersectionObserver | null>(null)
   const refs = useRef(new Map<string, (el: HTMLElement | null) => void>())
+  /** Смонтированные карточки — чтобы переподписать их, если наблюдатель пересоздан */
+  const nodes = useRef(new Map<string, HTMLElement>())
   // run и schedule вызывают друг друга — связываем через ref, а не через замыкание
   const scheduleRef = useRef<() => void>(() => {})
   const wantRef = useRef<(id: string) => void>(() => {})
@@ -231,13 +233,15 @@ export function useAssessments(companyId: string, items: CompanyNewsItem[]) {
     return observer.current
   }, [])
 
-  useEffect(
-    () => () => {
+  // Эффект может переподключиться при смонтированных карточках (StrictMode): ref'ы к этому
+  // моменту уже подписаны на отключённый наблюдатель — подписываем их на новый
+  useEffect(() => {
+    nodes.current.forEach((el) => getObserver().observe(el))
+    return () => {
       observer.current?.disconnect()
       observer.current = null
-    },
-    [],
-  )
+    }
+  }, [getObserver])
 
   // Уход со страницы или смена компании — закрываем поток и очередь
   useEffect(
@@ -261,8 +265,12 @@ export function useAssessments(companyId: string, items: CompanyNewsItem[]) {
           node = el
           if (el) {
             el.dataset.newsId = id
+            nodes.current.set(id, el)
             getObserver().observe(el)
-          } else visible.current.delete(id)
+          } else {
+            nodes.current.delete(id)
+            visible.current.delete(id)
+          }
         }
         refs.current.set(id, ref)
       }

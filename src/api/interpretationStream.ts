@@ -230,6 +230,9 @@ export function streamErrorText(e: StreamError): string {
       return 'Новость или компания не найдены, либо у вас нет доступа к компании.'
     case 429:
       return 'Модель сейчас занята. Повторите через минуту.'
+    case 502:
+    case 504:
+      return 'Сервис разбора не ответил. Повторите через минуту.'
     case 503:
       return 'Сервис временно недоступен.'
     default:

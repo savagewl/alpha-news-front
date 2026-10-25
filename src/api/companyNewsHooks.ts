@@ -151,12 +151,28 @@ export const useAsk = (
   return useMutation({
     mutationFn: async (question: string) => {
       let id = threadId
+      let thread: ChatThread | null = null
       if (!id) {
-        id = (await companyNewsApi.createThread(companyId, newsId)).id
+        thread = await companyNewsApi.createThread(companyId, newsId)
+        id = thread.id
         onThread(id)
       }
-      await companyNewsApi.ask(companyId, newsId, id, question)
-      return id
+      const result = await companyNewsApi.ask(companyId, newsId, id, question)
+      return { id, thread, result }
+    },
+    // ответ уже в теле POST — показываем его сразу, не дожидаясь перезапроса истории:
+    // если тот упадёт, диалог не пропадёт с экрана
+    onSuccess: async ({ id, thread, result }) => {
+      const key = companyNewsKeys.history(id)
+      // история, запрошенная до ответа, не должна затереть его
+      await qc.cancelQueries({ queryKey: key })
+      qc.setQueryData<ChatHistory>(key, (old) => {
+        const base = old ?? (thread && { thread, messages: [], limit: 100, has_more: false })
+        if (!base) return old
+        const added = [result.user_message, result.assistant_message]
+        const ids = new Set(added.map((m) => m.id))
+        return { ...base, messages: [...base.messages.filter((m) => !ids.has(m.id)), ...added] }
+      })
     },
     // неудачный ответ бэк тоже сохраняет в истории — обновляем её в любом случае
     onSettled: () => qc.invalidateQueries({ queryKey: ['chat'] }),

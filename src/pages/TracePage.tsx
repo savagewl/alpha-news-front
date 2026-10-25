@@ -1,6 +1,6 @@
 import { useEffect, type CSSProperties } from 'react'
 import { useParams } from 'react-router-dom'
-import { formatDate } from '../api/companyFormat'
+import { formatDate, plural } from '../api/companyFormat'
 import {
   refLabel,
   stepShort,
@@ -73,7 +73,7 @@ function TraceView({ eventId }: { eventId: string }) {
             {verification ? verificationLabel[verification.status] : 'Проверка не проводилась'}
           </h2>
           <p className="t-15">
-            {steps.length} шагов · модель {data.model}
+            {steps.length} {plural(steps.length, 'шаг', 'шага', 'шагов')} · модель {data.model}
             {data.reused ? ' · результат из кеша' : ''}
             {data.generated_at && ` · ${formatDate(data.generated_at)}`}
           </p>
@@ -122,7 +122,8 @@ function TraceView({ eventId }: { eventId: string }) {
                 </div>
                 <p className="t-11 c-muted">
                   {(st.tokens_prompt ?? 0).toLocaleString('ru-RU')} →{' '}
-                  {(st.tokens_completion ?? 0).toLocaleString('ru-RU')} токенов
+                  {(st.tokens_completion ?? 0).toLocaleString('ru-RU')}{' '}
+                  {plural(st.tokens_completion ?? 0, 'токен', 'токена', 'токенов')}
                 </p>
                 <code className={`t-mono ${s.call}`}>
                   {st.step} · {st.status}

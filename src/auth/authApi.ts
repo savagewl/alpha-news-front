@@ -47,10 +47,39 @@ function readToken(token: string): { sub?: string; exp?: number } {
   }
 }
 
+// Последний полученный профиль — чтобы сбой сети при проверке сессии не разлогинивал
+const USER_KEY = 'alpha-news:user'
+
+const userStorage = {
+  get(): User | null {
+    try {
+      const raw = localStorage.getItem(USER_KEY)
+      return raw ? (JSON.parse(raw) as User) : null
+    } catch {
+      return null
+    }
+  },
+  set(user: User | null) {
+    try {
+      if (user === null) localStorage.removeItem(USER_KEY)
+      else localStorage.setItem(USER_KEY, JSON.stringify(user))
+    } catch {
+      // хранилище недоступно — без кеша профиля
+    }
+  },
+}
+
+const clearSession = () => {
+  tokenStorage.set(null)
+  userStorage.set(null)
+}
+
 async function profile(token: string): Promise<User> {
   const { sub } = readToken(token)
   if (!sub) throw new AuthError('Сессия повреждена, войдите заново')
-  return toUser(await api.get<UserResponse>(`/user/${sub}`))
+  const user = toUser(await api.get<UserResponse>(`/user/${sub}`))
+  userStorage.set(user)
+  return user
 }
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase()
@@ -59,21 +88,30 @@ export const authApi = {
   async current(): Promise<User | null> {
     const token = tokenStorage.get()
     if (!token) return null
-    const { exp } = readToken(token)
+    const { sub, exp } = readToken(token)
     if (exp && exp * 1000 <= Date.now()) {
-      tokenStorage.set(null)
+      clearSession()
       return null
     }
     try {
       return await profile(token)
-    } catch {
-      tokenStorage.set(null)
-      return null
+    } catch (err) {
+      // токен отвергнут или пользователя нет — сессия недействительна
+      if (
+        err instanceof AuthError ||
+        (err instanceof ApiError && [401, 404].includes(err.status))
+      ) {
+        clearSession()
+        return null
+      }
+      // сеть или 5xx: сессия, скорее всего, жива — входим с последним известным профилем
+      const cached = userStorage.get()
+      return cached?.id === sub ? cached : null
     }
   },
 
   async login(email: string, password: string): Promise<User> {
-    tokenStorage.set(null)
+    clearSession()
     try {
       const { access_token } = await api.post<TokenResponse>('/user/login', {
         login: normalizeEmail(email),
@@ -82,7 +120,7 @@ export const authApi = {
       tokenStorage.set(access_token)
       return await profile(access_token)
     } catch (err) {
-      tokenStorage.set(null)
+      clearSession()
       if (err instanceof ApiError && err.status === 401)
         throw new AuthError('Неверный email или пароль')
       if (err instanceof ApiError && err.status === 422)
@@ -121,6 +159,6 @@ export const authApi = {
   },
 
   async logout(): Promise<void> {
-    tokenStorage.set(null)
+    clearSession()
   },
 }

@@ -86,4 +86,4 @@ export function documentIdOf(src: Pick<InterpretationSource, 'evidence_ref' | 's
 export const stripCitations = (text: string) =>
   text
     .replace(/\s*\[[A-Z]\d+\]/g, '')
-    .replace(/\s*\((?:company|news|bank|analytics):(?:[^()]|\([^()]*\))*\)/g, '')
+    .replace(/\s*\((?:Источники?:\s*)?(?:company|news|bank|analytics):(?:[^()]|\([^()]*\))*\)/g, '')

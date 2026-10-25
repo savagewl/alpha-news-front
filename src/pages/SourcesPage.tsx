@@ -3,7 +3,13 @@ import { useParams } from 'react-router-dom'
 import { useAuth } from '../auth/context'
 import { ApiError } from '../api/client'
 import { formatDate } from '../api/companyFormat'
-import { documentIdOf, originLabel, originOf, refKind } from '../api/companyNewsFormat'
+import {
+  documentIdOf,
+  originLabel,
+  originOf,
+  refKind,
+  stripCitations,
+} from '../api/companyNewsFormat'
 import {
   interpretationError,
   threadStorage,
@@ -21,7 +27,7 @@ import { Feedback } from '../components/Feedback'
 import { Typewriter } from '../components/Typewriter'
 import { Icon } from '../components/Icons'
 import { OpenPdf } from '../components/OpenPdf'
-import { Legend, OriginTag, Panel, Skeleton, StateCard, Tag } from '../components/ui'
+import { Button, Legend, OriginTag, Panel, Skeleton, StateCard, Tag } from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
 import { useWorkspace } from '../state/context'
 import { useEventInterpretation } from './eventContext'
@@ -66,10 +72,11 @@ function Dialog({ eventId }: { eventId: string }) {
   useEffect(() => openEvent(eventId), [eventId, openEvent])
 
   // сохранённый тред удалён на бэке — начинаем диалог заново
+  const historyGone = history.error instanceof ApiError && history.error.status === 404
   useEffect(() => {
-    if (history.error instanceof ApiError && history.error.status === 404) saveThread(null)
+    if (historyGone) saveThread(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [history.error])
+  }, [historyGone])
 
   // переход по ссылке «Первоисточники →» ведёт сразу к панели источников
   useEffect(() => {
@@ -130,7 +137,7 @@ function Dialog({ eventId }: { eventId: string }) {
 
       <div className={`${s.split} ${s.split390}`}>
         <div className={s.col} style={{ gap: 20 }}>
-          {questions.length === 0 && !pendingQuestion && (
+          {questions.length === 0 && !pendingQuestion && !(history.isError && !history.data) && (
             <Panel>
               <h2 className="t-h2">Задайте уточняющий вопрос</h2>
               <p className="t-13">
@@ -142,6 +149,15 @@ function Dialog({ eventId }: { eventId: string }) {
           )}
 
           {history.isPending && threadId && <Skeleton lines={4} />}
+
+          {history.isError && !history.data && !historyGone && (
+            <StateCard
+              kind="error"
+              title="История диалога не загрузилась"
+              text="Не удалось получить сообщения. Повторите попытку."
+              action={<Button onClick={() => history.refetch()}>Повторить</Button>}
+            />
+          )}
 
           {questions.map((q) => (
             <Exchange
@@ -278,7 +294,7 @@ function Exchange({
         <section className={`${s.block} appear`}>
           <OriginTag origin={origin}>{originLabel[origin]}</OriginTag>
           <p className="t-15" style={{ whiteSpace: 'pre-line' }}>
-            <Typewriter text={a.content} animate={fresh} />
+            <Typewriter text={stripCitations(a.content)} animate={fresh} />
           </p>
           {!!a.warnings?.length && <p className="t-12 c-muted">{a.warnings.join(' · ')}</p>}
           {!!a.sources?.length && (
