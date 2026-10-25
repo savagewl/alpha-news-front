@@ -21,7 +21,10 @@
   border-radius: 6px;
   font-size: 11px;
   line-height: 13px;
-  white-space: nowrap;
+  /* короткий тег не сжимается; длинный (заголовок источника) переносится, а не раздвигает экран */
+  flex-shrink: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .tag_neutral {
