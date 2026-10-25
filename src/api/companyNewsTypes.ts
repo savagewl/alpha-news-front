@@ -188,6 +188,29 @@ export interface AnalyticsDocument {
   embedding_error: string | null
 }
 
+/** Метаданные загружаемого PDF; без даты публикации документ нельзя применить в разборах */
+export interface UploadDocumentInput {
+  file: File
+  publisher: string
+  title: string | null
+  /** YYYY-MM-DD */
+  published_at: string | null
+  /** Темы через запятую */
+  topics: string
+}
+
+/** Ответ на загрузку: обработка идёт в фоне, тот же файл повторно не создаётся */
+export interface UploadDocumentResult {
+  document: AnalyticsDocument
+  duplicate: boolean
+  status_url: string
+}
+
+/** Общий для всех пользователей набор документов, применяемых как аналитика банка */
+export interface BankDocumentsSelection {
+  document_ids: string[]
+}
+
 /** Фрагмент PDF с привязкой к странице */
 export interface DocumentPassage {
   document_id: string

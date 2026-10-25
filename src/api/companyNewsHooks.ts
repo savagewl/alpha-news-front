@@ -5,12 +5,15 @@ import { ApiError, api, requestBlob } from './client'
 import type {
   AnalyticsDocument,
   AnalyticsSearchResult,
+  BankDocumentsSelection,
   ChatHistory,
   ChatMessageResult,
   ChatThread,
   CompanyNewsPage,
   CompanyNewsQuery,
   DocumentPassage,
+  UploadDocumentInput,
+  UploadDocumentResult,
 } from './companyNewsTypes'
 
 const newsPath = (companyId: string, newsId?: string) =>
@@ -35,6 +38,19 @@ export const companyNewsApi = {
     ),
   documents: (signal?: AbortSignal) =>
     api.get<AnalyticsDocument[]>('/analytics/documents', { limit: 100 }, signal),
+  upload: ({ file, publisher, title, published_at, topics }: UploadDocumentInput) => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('publisher', publisher)
+    if (title) form.append('title', title)
+    if (published_at) form.append('published_at', published_at)
+    if (topics) form.append('topics', topics)
+    return api.post<UploadDocumentResult>('/analytics/documents', form)
+  },
+  bankDocuments: (signal?: AbortSignal) =>
+    api.get<BankDocumentsSelection>('/analytics/bank-documents', undefined, signal),
+  setBankDocuments: (ids: string[]) =>
+    api.put<BankDocumentsSelection>('/analytics/bank-documents', { document_ids: ids }),
   passages: (documentId: string, signal?: AbortSignal) =>
     api.get<DocumentPassage[]>(
       `/analytics/documents/${encodeURIComponent(documentId)}/passages`,
@@ -54,6 +70,7 @@ export const companyNewsKeys = {
     ['interpretation', companyId, newsId] as const,
   history: (threadId: string) => ['chat', threadId] as const,
   documents: ['analytics', 'documents'] as const,
+  bankDocuments: ['analytics', 'bank-documents'] as const,
   passages: (documentId: string) => ['analytics', 'documents', documentId, 'passages'] as const,
 }
 
@@ -189,6 +206,31 @@ export const useAnalyticsDocuments = () =>
     refetchInterval: (query) =>
       query.state.data?.some((d) => processingStatuses.has(d.status)) ? 5_000 : false,
   })
+
+/** Загрузка PDF в общий корпус: документ сразу появляется в каталоге и обрабатывается в фоне */
+export const useUploadDocument = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: companyNewsApi.upload,
+    onSuccess: () => qc.invalidateQueries({ queryKey: companyNewsKeys.documents }),
+  })
+}
+
+/** Документы, которые сейчас применяются как аналитика банка */
+export const useBankDocuments = () =>
+  useQuery({
+    queryKey: companyNewsKeys.bankDocuments,
+    queryFn: ({ signal }) => companyNewsApi.bankDocuments(signal),
+  })
+
+/** Заменить набор аналитики банка — действует для всех пользователей и новых разборов */
+export const useApplyBankDocuments = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: companyNewsApi.setBankDocuments,
+    onSuccess: (selection) => qc.setQueryData(companyNewsKeys.bankDocuments, selection),
+  })
+}
 
 export const useDocumentPassages = (documentId: string | null) =>
   useQuery({

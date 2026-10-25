@@ -1,11 +1,20 @@
-import { useState, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useState, type CSSProperties, type FormEvent } from 'react'
+import { ApiError } from '../api/client'
 import {
   interpretationError,
   useAnalyticsDocuments,
   useAnalyticsSearch,
+  useApplyBankDocuments,
+  useBankDocuments,
   useDocumentPassages,
+  useUploadDocument,
 } from '../api/companyNewsHooks'
-import type { AnalyticsDocument, AnalyticsSearchHit, DocumentStatus } from '../api/companyNewsTypes'
+import type {
+  AnalyticsDocument,
+  AnalyticsSearchHit,
+  DocumentStatus,
+  UploadDocumentResult,
+} from '../api/companyNewsTypes'
 import { plural } from '../api/companyFormat'
 import { Icon } from '../components/Icons'
 import { OpenPdf } from '../components/OpenPdf'
@@ -17,9 +26,12 @@ import {
   SkeletonCard,
   StateCard,
   Tag,
+  TextField,
   type TagVariant,
 } from '../components/ui'
+import a from './auth.module.css'
 import h from './digest.module.css'
+import s from './pages.module.css'
 
 const documentStatus: Record<DocumentStatus, { label: string; variant: TagVariant }> = {
   ready: { label: 'Готов к смысловому поиску', variant: 'green' },
@@ -33,14 +45,49 @@ const documentStatus: Record<DocumentStatus, { label: string; variant: TagVarian
 const processing = (d: AnalyticsDocument) =>
   d.status === 'queued' || d.status === 'extracting' || d.status === 'indexing'
 
+/** Применить в разборах можно только обработанный PDF с датой публикации */
+const processed = (d: AnalyticsDocument) => d.status === 'ready' || d.status === 'parsed'
+const usable = (d: AnalyticsDocument) => processed(d) && !!d.published_at
+
+const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x))
+
 const formatDay = (date: string | null) =>
   date ? new Date(date).toLocaleDateString('ru-RU', { dateStyle: 'long' }) : null
 
-/** Аналитика банка в сводке: поиск по материалам и каталог PDF с фрагментами по страницам */
+const applyErrors: Record<number, string> = {
+  404: 'Документ не найден — обновите страницу.',
+  409: 'Часть документов ещё обрабатывается или без даты публикации.',
+  503: 'Сервис временно недоступен. Повторите попытку.',
+}
+
+/** Аналитика банка в сводке: загрузка PDF, поиск по материалам и каталог с фрагментами */
 export function BankAnalytics() {
   const docs = useAnalyticsDocuments()
+  const selection = useBankDocuments()
+  const apply = useApplyBankDocuments()
+  // загруженные здесь документы: как только обработаются — применяем весь доступный набор
+  const [awaiting, setAwaiting] = useState<string[]>([])
   const list = docs.data ?? []
   const ready = list.filter((d) => d.status === 'ready').length
+  const available = list.filter(usable).map((d) => d.id)
+  const applied = selection.data?.document_ids ?? []
+  const outdated = !!docs.data && !!selection.data && !sameSet(available, applied)
+  const applyAll = () => apply.mutate(available)
+
+  useEffect(() => {
+    if (!awaiting.length || !docs.data) return
+    const byId = new Map(docs.data.map((d) => [d.id, d]))
+    if (awaiting.some((id) => !byId.has(id) || processing(byId.get(id)!))) return
+    setAwaiting([])
+    // упавший или загруженный без даты документ применять нечего
+    if (outdated && awaiting.some((id) => usable(byId.get(id)!))) applyAll()
+    // applyAll и outdated выводятся из docs.data и selection — пересчитываются вместе с ними
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [awaiting, docs.data])
+
+  const applyError =
+    apply.error &&
+    ((apply.error instanceof ApiError && applyErrors[apply.error.status]) || apply.error.message)
 
   return (
     <div className={h.layout}>
@@ -68,11 +115,21 @@ export function BankAnalytics() {
           />
         )}
         {list.map((d, i) => (
-          <DocumentCard key={d.id} doc={d} index={i} />
+          <DocumentCard
+            key={d.id}
+            doc={d}
+            index={i}
+            applied={!!selection.data && applied.includes(d.id)}
+          />
         ))}
       </div>
 
       <aside className={h.aside}>
+        <UploadPanel
+          onUploaded={(doc) =>
+            setAwaiting((ids) => (ids.includes(doc.id) ? ids : [...ids, doc.id]))
+          }
+        />
         <section className={cx(h.panel, 'appear')}>
           <h2 className="t-h2">Как используется</h2>
           <div className={h.facts}>
@@ -81,14 +138,158 @@ export function BankAnalytics() {
               label="Готовы к смысловому поиску"
               value={docs.data ? `${ready} из ${list.length}` : null}
             />
+            <Fact
+              label="Применяются в разборах"
+              value={docs.data && selection.data ? `${applied.length} из ${list.length}` : null}
+            />
           </div>
+          {awaiting.length > 0 && (
+            <p className="t-12 c-muted" role="status">
+              Новый материал обрабатывается — после обработки он применится в разборах.
+            </p>
+          )}
+          {apply.isPending && (
+            <p className="t-12 c-muted" role="status">
+              Применяем материалы в разборах…
+            </p>
+          )}
+          {applyError && (
+            <p className="t-13 c-red" role="alert">
+              Не удалось применить материалы. {applyError}
+            </p>
+          )}
+          {outdated && !awaiting.length && !apply.isPending && available.length > 0 && (
+            <Button onClick={applyAll}>Применить все доступные · {available.length}</Button>
+          )}
           <p className={h.note}>
             Позиция банка появляется в разборе события только по подтверждённым фрагментам этих
-            материалов. AI её не заменяет.
+            материалов. AI её не заменяет. Набор общий для всех пользователей.
           </p>
         </section>
       </aside>
     </div>
+  )
+}
+
+const uploadErrors: Record<number, string> = {
+  401: 'Сессия истекла, войдите заново.',
+  413: 'PDF слишком большой.',
+  503: 'Сервис загрузки временно недоступен, попробуйте позже.',
+}
+
+const isPdf = (f: File) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name)
+
+/** Сегодня в формате поля даты — по местному времени, а не UTC */
+const today = () => new Date().toLocaleDateString('sv-SE')
+
+/** Загрузка аналитического PDF: метаданные задаёт загрузивший, обработка идёт в фоне */
+function UploadPanel({ onUploaded }: { onUploaded: (doc: AnalyticsDocument) => void }) {
+  const upload = useUploadDocument()
+  const [file, setFile] = useState<File | null>(null)
+  const [inputKey, setInputKey] = useState(0)
+  const [publisher, setPublisher] = useState('Альфа-Банк')
+  const [title, setTitle] = useState('')
+  const [publishedAt, setPublishedAt] = useState(today)
+  const [topics, setTopics] = useState('')
+  const [formError, setFormError] = useState('')
+  const [result, setResult] = useState<UploadDocumentResult | null>(null)
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    setResult(null)
+    if (!file || !isPdf(file)) return setFormError('Выберите PDF-файл.')
+    if (!publisher.trim()) return setFormError('Укажите издателя.')
+    if (!publishedAt)
+      return setFormError('Укажите дату публикации — без неё материал не применить.')
+    setFormError('')
+    upload.mutate(
+      {
+        file,
+        publisher: publisher.trim(),
+        title: title.trim() || null,
+        published_at: publishedAt,
+        topics: topics.trim(),
+      },
+      {
+        onSuccess: (r) => {
+          setResult(r)
+          onUploaded(r.document)
+          setFile(null)
+          setInputKey((k) => k + 1)
+          setTitle('')
+          setTopics('')
+        },
+      },
+    )
+  }
+
+  const err = upload.error
+  const errText =
+    formError || (err && ((err instanceof ApiError && uploadErrors[err.status]) || err.message))
+
+  return (
+    <section className={cx(h.panel, 'appear')}>
+      <h2 className="t-h2">Загрузить материал</h2>
+      <form className={s.col} style={{ gap: 12 }} onSubmit={onSubmit} noValidate>
+        <input
+          key={inputKey}
+          type="file"
+          accept=".pdf,application/pdf"
+          aria-label="PDF-файл"
+          className="t-13"
+          onChange={(e) => {
+            setFile(e.target.files?.[0] ?? null)
+            setFormError('')
+          }}
+        />
+        <TextField
+          label="Издатель"
+          value={publisher}
+          maxLength={300}
+          onChange={(e) => setPublisher(e.target.value)}
+        />
+        <TextField
+          label="Название, необязательно"
+          placeholder="Например, Обзор рынка стали"
+          value={title}
+          maxLength={500}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <TextField
+          label="Дата публикации"
+          type="date"
+          value={publishedAt}
+          max={today()}
+          onChange={(e) => setPublishedAt(e.target.value)}
+        />
+        <TextField
+          label="Темы через запятую, необязательно"
+          placeholder="сталь, ключевая ставка"
+          value={topics}
+          maxLength={2000}
+          onChange={(e) => setTopics(e.target.value)}
+        />
+        {errText && (
+          <p className={a.alert} role="alert">
+            {errText}
+          </p>
+        )}
+        <Button variant="primary" type="submit" disabled={!file || upload.isPending}>
+          {upload.isPending ? 'Загружаем…' : 'Загрузить →'}
+        </Button>
+      </form>
+      {result && (
+        <Tag variant="green">
+          {result.duplicate
+            ? 'Этот файл уже загружен — метаданные не изменены'
+            : 'Загружено — PDF обрабатывается'}
+        </Tag>
+      )}
+      <p className={h.note}>
+        PDF и сканы на русском и английском. Текст извлекается в фоне, затем материал применяется в
+        разборах для всех пользователей.
+      </p>
+    </section>
   )
 }
 
@@ -174,7 +375,16 @@ function Hit({ hit, index }: { hit: AnalyticsSearchHit; index: number }) {
   )
 }
 
-function DocumentCard({ doc, index }: { doc: AnalyticsDocument; index: number }) {
+function DocumentCard({
+  doc,
+  index,
+  applied,
+}: {
+  doc: AnalyticsDocument
+  index: number
+  /** Документ входит в набор аналитики банка для разборов */
+  applied: boolean
+}) {
   const [open, setOpen] = useState(false)
   const status = documentStatus[doc.status]
   const busy = processing(doc)
@@ -184,6 +394,7 @@ function DocumentCard({ doc, index }: { doc: AnalyticsDocument; index: number })
       <div className={h.cardTop}>
         <div className={h.chips}>
           <span className={cx(h.chip, h.chipRank)}>▤ {doc.publisher}</span>
+          {applied && <span className={cx(h.chip, h.chipNew)}>✓ В разборах</span>}
           {doc.published_at && <span className={h.chip}>{formatDay(doc.published_at)}</span>}
           {doc.page_count > 0 && (
             <span className={h.chip}>
@@ -208,6 +419,9 @@ function DocumentCard({ doc, index }: { doc: AnalyticsDocument; index: number })
         </div>
       )}
       {doc.error && <p className="t-13 c-red">{doc.error}</p>}
+      {processed(doc) && !doc.published_at && (
+        <p className={h.note}>Без даты публикации документ не применяется в разборах.</p>
+      )}
       {doc.embedding_error && (
         <p className={h.note}>
           Смысловой поиск по документу пока недоступен — работает поиск по словам.
