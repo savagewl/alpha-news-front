@@ -147,17 +147,38 @@ export async function openStream(
   return res.body
 }
 
-/** Файл с авторизацией — для PDF аналитики, которые не открыть обычной ссылкой */
-export async function requestBlob(path: string): Promise<Blob> {
+/**
+ * Файл с авторизацией — для PDF аналитики, которые не открыть обычной ссылкой.
+ * onProgress получает загруженные и общие байты (total = 0, если размер неизвестен).
+ */
+export async function requestBlob(
+  path: string,
+  onProgress?: (loaded: number, total: number) => void,
+  signal?: AbortSignal,
+): Promise<Blob> {
   const token = tokenStorage.get()
   const res = await fetch(buildUrl(path), {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
+    signal,
   })
   if (!res.ok) {
     if (res.status === 401 && token) onUnauthorized?.()
     throw new ApiError(res.status, res.statusText)
   }
-  return res.blob()
+  if (!onProgress || !res.body) return res.blob()
+  const total = Number(res.headers.get('Content-Length')) || 0
+  const type = res.headers.get('Content-Type') ?? ''
+  const reader = res.body.getReader()
+  const parts: Uint8Array<ArrayBuffer>[] = []
+  let loaded = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    parts.push(value)
+    loaded += value.length
+    onProgress(loaded, total)
+  }
+  return new Blob(parts, { type })
 }
 
 function safeJson(text: string): unknown {

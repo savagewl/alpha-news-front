@@ -59,8 +59,12 @@ export const companyNewsApi = {
     ),
   search: (query: string) =>
     api.post<AnalyticsSearchResult>('/analytics/search', { query, limit: 10, mode: 'hybrid' }),
-  file: (documentId: string) =>
-    requestBlob(`/analytics/documents/${encodeURIComponent(documentId)}/file`),
+  file: (
+    documentId: string,
+    onProgress?: (loaded: number, total: number) => void,
+    signal?: AbortSignal,
+  ) =>
+    requestBlob(`/analytics/documents/${encodeURIComponent(documentId)}/file`, onProgress, signal),
 }
 
 export const companyNewsKeys = {
@@ -244,19 +248,77 @@ export const useDocumentPassages = (documentId: string | null) =>
 export const useAnalyticsSearch = () =>
   useMutation({ mutationFn: (query: string) => companyNewsApi.search(query) })
 
+/** Скачанные за сессию PDF: повторное открытие, в том числе другой страницы, — без загрузки */
+const pdfUrls = new Map<string, string>()
+
+const megabytes = (bytes: number) =>
+  (bytes / 1024 / 1024).toLocaleString('ru-RU', { maximumFractionDigits: 1 })
+
+/**
+ * Пока PDF качается, во вкладке — заглушка с прогрессом, а не пустой about:blank:
+ * файлы аналитики весят мегабайты и грузятся десятки секунд. Возвращает, куда писать прогресс.
+ */
+function showLoading(tab: Window): (text: string) => void {
+  try {
+    const d = tab.document
+    d.title = 'Загружаем PDF…'
+    const box = d.createElement('div')
+    box.style.cssText =
+      'font:15px/1.5 system-ui,sans-serif;color:#0b1f35;max-width:480px;margin:0 auto;padding:64px 24px'
+    const title = d.createElement('p')
+    title.style.cssText = 'margin:0 0 8px;font-size:18px;font-weight:600'
+    title.textContent = 'Загружаем PDF…'
+    const status = d.createElement('p')
+    status.style.cssText = 'margin:0;color:#6b7280'
+    status.textContent = 'Файл аналитики большой — загрузка может занять до минуты.'
+    box.append(title, status)
+    d.body.append(box)
+    return (text) => {
+      status.textContent = text
+    }
+  } catch {
+    // вкладка недоступна для записи — просто ждём файл
+    return () => {}
+  }
+}
+
 /**
  * PDF отдаётся только с токеном, поэтому обычная ссылка не подходит:
  * скачиваем файл и открываем его во вкладке, #page=N листает к нужной странице.
  */
 export async function openDocument(documentId: string, page?: number | null) {
+  // вкладку открываем сразу, пока действует клик пользователя, — иначе её заблокируют
   const tab = window.open('', '_blank')
+  const show = (url: string) => {
+    const target = page ? `${url}#page=${page}` : url
+    if (tab) tab.location.href = target
+    else window.location.href = target
+  }
+  const cached = pdfUrls.get(documentId)
+  if (cached) return show(cached)
+
+  const progress = tab ? showLoading(tab) : () => {}
+  const ctrl = new AbortController()
   try {
-    const blob = await companyNewsApi.file(documentId)
+    const blob = await companyNewsApi.file(
+      documentId,
+      (loaded, total) => {
+        // вкладку закрыли, не дождавшись, — дальше не качаем
+        if (tab?.closed) return ctrl.abort()
+        progress(
+          total
+            ? `${megabytes(loaded)} из ${megabytes(total)} МБ · ${Math.floor((loaded / total) * 100)}%`
+            : `${megabytes(loaded)} МБ`,
+        )
+      },
+      ctrl.signal,
+    )
     const url = URL.createObjectURL(blob)
-    if (tab) tab.location.href = page ? `${url}#page=${page}` : url
-    else window.location.href = url
+    pdfUrls.set(documentId, url)
+    show(url)
   } catch (err) {
     tab?.close()
+    if (ctrl.signal.aborted) return
     throw err
   }
 }
