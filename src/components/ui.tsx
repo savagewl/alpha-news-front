@@ -354,31 +354,58 @@ export function StateCard({
   )
 }
 
-/** Пагинация limit/offset: «21–40 из 57» и стрелки. Скрыта, если всё помещается на страницу */
-export function Pager({
-  offset,
-  limit,
-  total,
-  onChange,
+/**
+ * Бесконечная прокрутка: ставится в конец списка и, как только он подходит к экрану,
+ * догружает следующую порцию. После ошибки ждёт «Повторить», с auto=false — кнопку.
+ */
+export function InfiniteLoader({
+  hasMore,
+  loading,
+  error,
+  auto = true,
+  onLoad,
 }: {
-  offset: number
-  limit: number
-  total: number
-  onChange: (offset: number) => void
+  hasMore: boolean
+  loading: boolean
+  error?: boolean
+  /** false — не грузить самому, показать «Показать ещё» */
+  auto?: boolean
+  onLoad: () => void
 }) {
-  if (total <= limit && offset === 0) return null
-  const last = Math.min(offset + limit, total)
+  const ref = useRef<HTMLDivElement>(null)
+  const load = useRef(onLoad)
+  useEffect(() => {
+    load.current = onLoad
+  })
+
+  // наблюдатель пересоздаётся после каждой порции: если низ списка всё ещё в экране,
+  // первый же вызов догрузит следующую
+  useEffect(() => {
+    const el = ref.current
+    if (!el || !hasMore || loading || error || !auto) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) load.current()
+      },
+      { rootMargin: '0px 0px 400px 0px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [hasMore, loading, error, auto])
+
+  if (!hasMore) return null
   return (
-    <div className={s.pager}>
-      <span className="t-12 c-muted">
-        {total ? offset + 1 : 0}–{last} из {total}
-      </span>
-      <Button disabled={offset === 0} onClick={() => onChange(Math.max(0, offset - limit))}>
-        ← Назад
-      </Button>
-      <Button disabled={last >= total} onClick={() => onChange(offset + limit)}>
-        Дальше →
-      </Button>
+    <div ref={ref} className={s.loader} aria-busy={loading}>
+      {loading ? (
+        <Skeleton lines={2} />
+      ) : error ? (
+        <>
+          <span className="t-13 c-muted">Не удалось загрузить продолжение.</span>
+          <Button onClick={onLoad}>Повторить</Button>
+        </>
+      ) : (
+        !auto && <Button onClick={onLoad}>Показать ещё</Button>
+      )}
     </div>
   )
 }

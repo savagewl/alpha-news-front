@@ -51,6 +51,13 @@ export function useDigestFeed(companyId: string) {
       (!filters.bankOnly || !!bankPosition(n)),
   )
 
+  // Риски, возможности и банк фильтруются на фронте: если очередная порция не дала ни одной
+  // подходящей карточки, дальше грузим по кнопке, а не выкачиваем всю ленту прокруткой
+  const lastPage = pages?.[pages.length - 1]
+  const clientFiltered = filters.risks !== filters.opportunities || filters.bankOnly
+  const autoLoad =
+    !clientFiltered || !lastPage || visible.some((n) => lastPage.items.some((x) => x.id === n.id))
+
   // Новые — те, что поднялись в верх ленты после загрузки и ещё не показаны
   const shown = new Set(all.map((n) => n.id))
   const fresh = feed.isFetching ? 0 : (head.data?.items.filter((n) => !shown.has(n.id)).length ?? 0)
@@ -65,6 +72,7 @@ export function useDigestFeed(companyId: string) {
     set,
     reset,
     filtered,
+    autoLoad,
     assessments,
     observe,
     retry,

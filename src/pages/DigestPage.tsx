@@ -2,14 +2,14 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { topicLabel, type ArticleTopic } from '../api/articleTypes'
 import { formatDecimal, place, plural } from '../api/companyFormat'
-import { useCompany } from '../api/companyHooks'
+import { loaderProps, useCompany } from '../api/companyHooks'
 import type { CompanyNewsItem } from '../api/companyNewsTypes'
 import type { Company } from '../api/companyTypes'
 import { FeedCard } from '../components/FeedCard'
 import { RichText } from '../components/Typewriter'
 import { stripCitations } from '../api/companyNewsFormat'
 import { Icon } from '../components/Icons'
-import { Button, Dropdown, MenuItem, StateCard, Tag } from '../components/ui'
+import { Button, Dropdown, InfiniteLoader, MenuItem, StateCard, Tag } from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
 import { useWorkspace } from '../state/context'
 import h from './digest.module.css'
@@ -117,6 +117,7 @@ function Feed() {
     set,
     reset,
     filtered,
+    autoLoad,
     assessments,
     observe,
     retry,
@@ -286,11 +287,7 @@ function Feed() {
               />
             ))}
 
-            {feed.hasNextPage && (
-              <Button onClick={() => feed.fetchNextPage()} disabled={feed.isFetchingNextPage}>
-                {feed.isFetchingNextPage ? 'Загружаем…' : 'Показать ещё'}
-              </Button>
-            )}
+            <InfiniteLoader {...loaderProps(feed)} auto={autoLoad} />
 
             <div className={s.row}>
               <Button to="/saved">Показать сохранённое · {saved.length}</Button>

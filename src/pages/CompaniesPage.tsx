@@ -2,9 +2,23 @@ import { useEffect, useState, type CSSProperties, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { companyTitle, formatDecimal, place, plural } from '../api/companyFormat'
-import { useCompaniesInfinite, useCreateCompany, useImportCsv } from '../api/companyHooks'
+import {
+  flatPages,
+  loaderProps,
+  useCompaniesInfinite,
+  useCreateCompany,
+  useImportCsv,
+} from '../api/companyHooks'
 import type { CsvDelimiter, CsvEncoding, ImportKind, ImportResult } from '../api/companyTypes'
-import { Button, Panel, Skeleton, StateCard, Tag, TextField } from '../components/ui'
+import {
+  Button,
+  InfiniteLoader,
+  Panel,
+  Skeleton,
+  StateCard,
+  Tag,
+  TextField,
+} from '../components/ui'
 import { cx } from '../components/cx'
 import { PageHead } from '../layout/AppLayout'
 import { useWorkspace } from '../state/context'
@@ -32,8 +46,7 @@ export default function CompaniesPage() {
   const list = useCompaniesInfinite({ q: q || undefined, limit: PAGE })
   const { isLoading, isError, error, refetch, isFetching } = list
   // новый запрос поиска — новый ключ, список начинается с первой порции
-  const first = list.data?.pages[0]
-  const data = first && { total: first.total, items: list.data!.pages.flatMap((p) => p.items) }
+  const data = flatPages(list.data)
 
   const search = (value: string) => setQuery(value)
 
@@ -119,19 +132,11 @@ export default function CompaniesPage() {
               </button>
             )
           })}
+          <InfiniteLoader {...loaderProps(list)} />
           {data && data.total > 0 && (
-            <div className={`${s.row} ${s.between}`} style={{ opacity: isFetching ? 0.6 : 1 }}>
-              <span className="t-12 c-muted">
-                Показано {data.items.length} из {data.total}
-              </span>
-              {list.hasNextPage && (
-                <Button onClick={() => list.fetchNextPage()} disabled={list.isFetchingNextPage}>
-                  {list.isFetchingNextPage
-                    ? 'Загружаем…'
-                    : `Показать ещё · ${Math.min(PAGE, data.total - data.items.length)}`}
-                </Button>
-              )}
-            </div>
+            <span className="t-12 c-muted" style={{ opacity: isFetching ? 0.6 : 1 }}>
+              Показано {data.items.length} из {data.total.toLocaleString('ru-RU')}
+            </span>
           )}
         </div>
 

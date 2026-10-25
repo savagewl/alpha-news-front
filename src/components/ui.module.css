@@ -384,13 +384,15 @@
   }
 }
 
-.pager {
+/* датчик бесконечной прокрутки: пустой — 1px, чтобы наблюдателю было за что зацепиться */
+.loader {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 10px;
+  min-height: 1px;
 }
 
-.pager > :first-child {
-  margin-right: auto;
+.loader > :first-child:not(button) {
+  align-self: stretch;
 }

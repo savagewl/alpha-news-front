@@ -2,6 +2,8 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { ApiError } from '../api/client'
 import { companyTitle, formatDate, formatDecimal, place } from '../api/companyFormat'
 import {
+  flatPages,
+  loaderProps,
   useAddCompanyUser,
   useCompany,
   useCompanyPayments,
@@ -11,7 +13,16 @@ import {
 } from '../api/companyHooks'
 import type { Company, PaymentDirection } from '../api/companyTypes'
 import { useAuth } from '../auth/context'
-import { Button, Field, Pager, Panel, Skeleton, StateCard, Tag, TextField } from '../components/ui'
+import {
+  Button,
+  Field,
+  InfiniteLoader,
+  Panel,
+  Skeleton,
+  StateCard,
+  Tag,
+  TextField,
+} from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
 import { useWorkspace } from '../state/context'
 import a from './auth.module.css'
@@ -272,22 +283,22 @@ const directions: { value: PaymentDirection; label: string }[] = [
   { value: 'outgoing', label: 'Исходящие' },
 ]
 
+/** «Показано 40 из 57» — пока загружено не всё */
+const Shown = ({ data }: { data: { items: unknown[]; total: number } }) =>
+  data.items.length < data.total && (
+    <span className="t-12 c-muted">
+      Показано {data.items.length} из {data.total.toLocaleString('ru-RU')}
+    </span>
+  )
+
 function PaymentsPanel({ companyId }: { companyId: string }) {
   const [direction, setDirection] = useState<PaymentDirection>('all')
   const [importId, setImportId] = useState<string | null>(null)
-  const [offset, setOffset] = useState(0)
   const imports = usePaymentImports(companyId)
-  const { data, isLoading, isError, error } = useCompanyPayments(companyId, {
-    direction,
-    importId,
-    limit: PAGE,
-    offset,
-  })
-
-  const choose = (patch: () => void) => {
-    patch()
-    setOffset(0)
-  }
+  const list = useCompanyPayments(companyId, { direction, importId, limit: PAGE })
+  const { isLoading, isError, error } = list
+  // новый фильтр — новый ключ запроса, список начинается с первой порции
+  const data = flatPages(list.data)
 
   return (
     <Panel>
@@ -301,7 +312,7 @@ function PaymentsPanel({ companyId }: { companyId: string }) {
           <Button
             key={d.value}
             pressed={direction === d.value}
-            onClick={() => choose(() => setDirection(d.value))}
+            onClick={() => setDirection(d.value)}
           >
             {d.label}
           </Button>
@@ -310,7 +321,7 @@ function PaymentsPanel({ companyId }: { companyId: string }) {
       {imports.data && imports.data.items.length > 1 && (
         <div className={s.row}>
           <span className="t-12 c-muted">Набор:</span>
-          <Button pressed={importId === null} onClick={() => choose(() => setImportId(null))}>
+          <Button pressed={importId === null} onClick={() => setImportId(null)}>
             Все наборы
           </Button>
           {imports.data.items.map((i) => (
@@ -318,7 +329,7 @@ function PaymentsPanel({ companyId }: { companyId: string }) {
               key={i.import_id}
               pressed={importId === i.import_id}
               title={`${i.company_payment_rows} строк с компанией из ${i.row_count}`}
-              onClick={() => choose(() => setImportId(i.import_id))}
+              onClick={() => setImportId(i.import_id)}
             >
               {i.filename} · {formatDate(i.created_at)}
             </Button>
@@ -358,17 +369,16 @@ function PaymentsPanel({ companyId }: { companyId: string }) {
         ) : (
           <p className="t-15">Платёжные связи компании не загружены.</p>
         ))}
-      {data && <Pager offset={offset} limit={PAGE} total={data.total} onChange={setOffset} />}
+      {data && <Shown data={data} />}
+      <InfiniteLoader {...loaderProps(list)} />
     </Panel>
   )
 }
 
 function PersonsPanel({ companyId }: { companyId: string }) {
-  const [offset, setOffset] = useState(0)
-  const { data, isLoading, isError, error } = useCompanyPersons(companyId, {
-    limit: PAGE,
-    offset,
-  })
+  const list = useCompanyPersons(companyId, { limit: PAGE })
+  const { isLoading, isError, error } = list
+  const data = flatPages(list.data)
   return (
     <Panel>
       <h2 className="t-h2">Связанные физлица</h2>
@@ -400,7 +410,8 @@ function PersonsPanel({ companyId }: { companyId: string }) {
         ) : (
           <p className="t-15">Связанные физлица не загружены.</p>
         ))}
-      {data && <Pager offset={offset} limit={PAGE} total={data.total} onChange={setOffset} />}
+      {data && <Shown data={data} />}
+      <InfiniteLoader {...loaderProps(list)} />
     </Panel>
   )
 }
@@ -409,11 +420,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function MembersPanel({ companyId }: { companyId: string }) {
   const { user } = useAuth()
-  const [offset, setOffset] = useState(0)
   const [userId, setUserId] = useState('')
   const [formError, setFormError] = useState('')
   const [added, setAdded] = useState(false)
-  const { data, isLoading } = useCompanyUsers(companyId, { limit: PAGE, offset })
+  const list = useCompanyUsers(companyId, { limit: PAGE })
+  const { isLoading } = list
+  const data = flatPages(list.data)
   const add = useAddCompanyUser(companyId)
 
   const onSubmit = (e: FormEvent) => {
@@ -456,7 +468,8 @@ function MembersPanel({ companyId }: { companyId: string }) {
           }
         />
       ))}
-      {data && <Pager offset={offset} limit={PAGE} total={data.total} onChange={setOffset} />}
+      {data && <Shown data={data} />}
+      <InfiniteLoader {...loaderProps(list)} />
       <form className={s.col} style={{ gap: 10 }} onSubmit={onSubmit}>
         <TextField
           label="Добавить по ID пользователя"

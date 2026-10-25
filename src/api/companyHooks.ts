@@ -28,6 +28,9 @@ interface PageQuery {
   offset: number
 }
 
+/** Размер порции бесконечного списка — смещение подставляет сам запрос */
+type LimitQuery = Omit<PageQuery, 'offset'>
+
 export interface PaymentsQuery extends PageQuery {
   direction: PaymentDirection
   importId: string | null
@@ -61,10 +64,11 @@ export const companyKeys = {
   all: ['companies'] as const,
   list: (q: CompaniesQuery) => ['companies', 'list', q] as const,
   one: (id: string) => ['companies', id] as const,
-  persons: (id: string, q: PageQuery) => ['companies', id, 'persons', q] as const,
-  payments: (id: string, q: PaymentsQuery) => ['companies', id, 'payments', q] as const,
+  persons: (id: string, q: LimitQuery) => ['companies', id, 'persons', q] as const,
+  payments: (id: string, q: Omit<PaymentsQuery, 'offset'>) =>
+    ['companies', id, 'payments', q] as const,
   paymentImports: (id: string) => ['companies', id, 'payment-imports'] as const,
-  users: (id: string, q: PageQuery) => ['companies', id, 'users', q] as const,
+  users: (id: string, q: LimitQuery) => ['companies', id, 'users', q] as const,
 }
 
 export const useCompanies = (q: CompaniesQuery) =>
@@ -74,14 +78,35 @@ export const useCompanies = (q: CompaniesQuery) =>
     placeholderData: keepPreviousData,
   })
 
-/** Список компаний порциями: «Показать ещё» догружает следующие limit штук */
+/** Смещение следующей порции limit/offset или undefined, если загружено всё */
+const nextOffset = (last: { offset: number; limit: number; total: number }) =>
+  last.offset + last.limit < last.total ? last.offset + last.limit : undefined
+
+/** Все загруженные порции одним списком и общее число строк */
+export const flatPages = <T>(data: { pages: Page<T>[] } | undefined) =>
+  data && { total: data.pages[0].total, items: data.pages.flatMap((p) => p.items) }
+
+/** Пропсы InfiniteLoader из useInfiniteQuery; пока показаны данные прошлого запроса — ждём */
+export const loaderProps = (q: {
+  hasNextPage: boolean
+  isFetchingNextPage: boolean
+  isFetchNextPageError: boolean
+  isPlaceholderData: boolean
+  fetchNextPage: () => unknown
+}) => ({
+  hasMore: q.hasNextPage,
+  loading: q.isFetchingNextPage || q.isPlaceholderData,
+  error: q.isFetchNextPageError,
+  onLoad: () => void q.fetchNextPage(),
+})
+
+/** Список компаний порциями: бесконечная прокрутка догружает следующие limit штук */
 export const useCompaniesInfinite = (q: Omit<CompaniesQuery, 'offset'> & { limit: number }) =>
   useInfiniteQuery({
     queryKey: [...companyKeys.all, 'infinite', q] as const,
     queryFn: ({ pageParam, signal }) => companyApi.list({ ...q, offset: pageParam }, signal),
     initialPageParam: 0,
-    getNextPageParam: (last) =>
-      last.offset + last.limit < last.total ? last.offset + last.limit : undefined,
+    getNextPageParam: nextOffset,
     placeholderData: keepPreviousData,
   })
 
@@ -101,19 +126,24 @@ export const useCreateCompany = () => {
   })
 }
 
-export const useCompanyPersons = (id: string, q: PageQuery) =>
-  useQuery({
+export const useCompanyPersons = (id: string, q: LimitQuery) =>
+  useInfiniteQuery({
     queryKey: companyKeys.persons(id, q),
-    queryFn: ({ signal }) => companyApi.persons(id, q, signal),
+    queryFn: ({ pageParam, signal }) => companyApi.persons(id, { ...q, offset: pageParam }, signal),
+    initialPageParam: 0,
+    getNextPageParam: nextOffset,
     enabled: !!id,
-    placeholderData: keepPreviousData,
   })
 
-export const useCompanyPayments = (id: string, q: PaymentsQuery) =>
-  useQuery({
+export const useCompanyPayments = (id: string, q: Omit<PaymentsQuery, 'offset'>) =>
+  useInfiniteQuery({
     queryKey: companyKeys.payments(id, q),
-    queryFn: ({ signal }) => companyApi.payments(id, q, signal),
+    queryFn: ({ pageParam, signal }) =>
+      companyApi.payments(id, { ...q, offset: pageParam }, signal),
+    initialPageParam: 0,
+    getNextPageParam: nextOffset,
     enabled: !!id,
+    // смена направления или набора — прежние строки видны, пока грузятся новые
     placeholderData: keepPreviousData,
   })
 
@@ -125,12 +155,13 @@ export const usePaymentImports = (id: string) =>
     enabled: !!id,
   })
 
-export const useCompanyUsers = (id: string, q: PageQuery) =>
-  useQuery({
+export const useCompanyUsers = (id: string, q: LimitQuery) =>
+  useInfiniteQuery({
     queryKey: companyKeys.users(id, q),
-    queryFn: ({ signal }) => companyApi.users(id, q, signal),
+    queryFn: ({ pageParam, signal }) => companyApi.users(id, { ...q, offset: pageParam }, signal),
+    initialPageParam: 0,
+    getNextPageParam: nextOffset,
     enabled: !!id,
-    placeholderData: keepPreviousData,
   })
 
 export const useAddCompanyUser = (id: string) => {

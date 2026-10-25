@@ -59,7 +59,7 @@ export const companyNewsKeys = {
 
 export const feedPageSize = 20
 
-/** Лента сводки: страницы по limit/offset, «Показать ещё» догружает следующую */
+/** Лента сводки: страницы по limit/offset, прокрутка догружает следующую */
 export const useCompanyNews = (companyId: string, q: CompanyNewsQuery) =>
   useInfiniteQuery({
     queryKey: companyNewsKeys.feed(companyId, q),
