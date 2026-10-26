@@ -1,14 +1,17 @@
 import { useEffect, type CSSProperties, type ReactNode } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useArticle, useNewsSources } from '../api/articleHooks'
-import { formatDate } from '../api/companyFormat'
-import { originOf, refLabel, verificationLabel } from '../api/companyNewsFormat'
+import { useCompany } from '../api/companyHooks'
+import { formatDate, formatRevenueShort } from '../api/companyFormat'
+import { refLabel, verificationLabel } from '../api/companyNewsFormat'
 import type { InsightDraft, InterpretationSource, Verification } from '../api/companyNewsTypes'
 import { stageLabel } from '../api/interpretationStream'
 import type { Origin } from '../api/newsTypes'
+import type { Company } from '../api/companyTypes'
 import { Feedback } from '../components/Feedback'
+import { HeartIcon, Icon, LampIcon, SparklesIcon } from '../components/Icons'
 import { RichText } from '../components/Typewriter'
-import { Button, Legend, OriginTag, Panel, StateCard, Tag } from '../components/ui'
+import { Button, Panel, StateCard, Tag } from '../components/ui'
 import { PageHead } from '../layout/AppLayout'
 import { useWorkspace } from '../state/context'
 import { useEventInterpretation } from './eventContext'
@@ -31,6 +34,7 @@ function Interpretation({ eventId }: { eventId: string }) {
   const { result: data, draft, stage } = useEventInterpretation()
   const { data: article } = useArticle(eventId)
   const { data: newsSources } = useNewsSources()
+  const { data: company } = useCompany(companyId)
 
   useEffect(() => openEvent(eventId), [eventId, openEvent])
 
@@ -41,6 +45,17 @@ function Interpretation({ eventId }: { eventId: string }) {
     article &&
     (newsSources?.find((x) => x.code === article.source_code)?.name ?? article.source_code)
   const date = article && formatDate(article.published_at ?? article.first_seen_at)
+  const saveButton = (
+    <button
+      type="button"
+      className={h.save}
+      aria-pressed={saved}
+      onClick={() => toggleSaved(eventId)}
+    >
+      <HeartIcon filled={saved} />
+      {saved ? 'Сохранено' : 'Сохранить'}
+    </button>
+  )
 
   return (
     <>
@@ -60,9 +75,7 @@ function Interpretation({ eventId }: { eventId: string }) {
           {data?.is_demo && <Tag>Демо-ответ</Tag>}
           {!data && <Tag variant="dark">Формируется · предварительный результат</Tag>}
         </div>
-        <Button pressed={saved} onClick={() => toggleSaved(eventId)}>
-          {saved ? '★ Сохранено' : '☆ Сохранить'}
-        </Button>
+        {!insight?.ai_interpretation && saveButton}
       </PageHead>
 
       {!data && (
@@ -74,20 +87,19 @@ function Interpretation({ eventId }: { eventId: string }) {
       )}
 
       {insight?.ai_interpretation && (
-        <section className={s.lime} style={{ padding: '24px 20px' }}>
-          <div className={s.col} style={{ gap: 8 }}>
-            <p className={s.eyebrow}>✦ ГЛАВНОЕ ДЛЯ КОМПАНИИ</p>
-            <h2 className={`${s.limeTitle} ${s.limeTitleSm}`}>
+        <section className={h.eventHero}>
+          <div className={h.heroHead}>
+            <span className={h.heroTag}>AI · Главное для компании</span>
+            <h2 className={h.heroTitle}>
               <RichText text={firstSentence(insight.ai_interpretation)} />
             </h2>
           </div>
+          {saveButton}
         </section>
       )}
 
-      <Legend />
-
       <div className={s.split}>
-        <div className={s.col}>
+        <div className={h.events}>
           {insight ? (
             <Blocks
               insight={insight}
@@ -132,19 +144,31 @@ function Interpretation({ eventId }: { eventId: string }) {
           <Panel>
             <h2 className="t-h2">Контекст решения</h2>
             <Tag>{companyId}</Tag>
-            <p className="t-13">
-              Разбор построен по профилю {companyId}: отрасль, регион, продукты банка и платёжные
-              связи.
-              {data && ` Модель: ${data.model}`}
-              {data?.generated_at && ` · ${formatDate(data.generated_at)}`}
+            <p className={h.contextText}>
+              {[
+                formatRevenueShort(company?.annual_revenue),
+                company?.okved_name,
+                company?.group_id,
+                products(company),
+              ]
+                .filter(Boolean)
+                .join(' · ') || `Разбор построен по профилю ${companyId}.`}
             </p>
-            <Button to="/profile">Профиль компании →</Button>
+            {data && (
+              <p className="t-12 c-muted">
+                Модель: {data.model}
+                {data.generated_at && ` · ${formatDate(data.generated_at)}`}
+              </p>
+            )}
+            <Link to="/profile" className={h.actionBtn}>
+              Профиль компании
+            </Link>
           </Panel>
           {(!!insight?.limitations?.length || !!data?.warnings?.length) && (
             <Panel>
               <h2 className="t-h2">Границы вывода</h2>
               {insight?.limitations?.map((l) => (
-                <p key={l} className="t-13">
+                <p key={l} className={h.contextText}>
                   {l}
                 </p>
               ))}
@@ -153,16 +177,25 @@ function Interpretation({ eventId }: { eventId: string }) {
                   {w}
                 </p>
               ))}
+              <span className={h.unconfirmedTag}>Не подтверждено ≠ факт</span>
             </Panel>
           )}
-          <Panel green>
+          <Panel>
             <h2 className="t-h2">Продолжить разбор</h2>
-            <p className="t-13">Сформулируйте вопрос с учётом своего бюджета и ограничений.</p>
-            <Button variant="primary" to={`/sources/${eventId}`}>
-              Уточнить у AI →
-            </Button>
-            <Button to={`/sources/${eventId}#sources`}>Первоисточники →</Button>
-            <Button to={`/trace/${eventId}`}>Agent Trace →</Button>
+            <p className={h.contextText}>
+              Сформулируйте вопрос с учётом своего бюджета и ограничений.
+            </p>
+            <div className={h.actions}>
+              <Link to={`/sources/${eventId}`} className={`${h.actionBtn} ${h.actionPrimary}`}>
+                Уточнить у AI
+              </Link>
+              <Link to={`/sources/${eventId}#sources`} className={h.actionBtn}>
+                Первоисточники
+              </Link>
+              <Link to={`/trace/${eventId}`} className={h.actionBtn}>
+                Agent Trace
+              </Link>
+            </div>
           </Panel>
         </div>
       </div>
@@ -235,13 +268,13 @@ function Blocks({
         <>
           {!!insight.risks?.length && (
             <>
-              <p className="t-15 t-semibold">△ Риски</p>
+              <p className="t-semibold">△ Риски</p>
               <List items={insight.risks} pending={draft} />
             </>
           )}
           {!!insight.opportunities?.length && (
             <>
-              <p className="t-15 t-semibold">↗ Возможности</p>
+              <p className="t-semibold">↗ Возможности</p>
               <List items={insight.opportunities} pending={draft} />
             </>
           )}
@@ -265,28 +298,40 @@ function Blocks({
       {blocks.map((b, i) => (
         <section
           key={b.question}
-          className={`${s.block} appear`}
+          className={`${h.card} appear`}
           style={{ '--i': i } as CSSProperties}
         >
-          <h2 className={s.blockTitle}>
-            {String(i + 1).padStart(2, '0')} {b.question}
+          <h2 className={h.eventTitle}>
+            <span className={h.eventNum}>{String(i + 1).padStart(2, '0')}</span> {b.question}
           </h2>
-          <OriginTag origin={b.origin}>{b.label}</OriginTag>
-          {b.body}
-          <p className={s.basis}>{b.basis}</p>
+          <div className={h.cardBody}>
+            <div className={h.cardText}>{b.body}</div>
+            <div className={h.meta}>
+              <span className={h.metaItem}>
+                {b.origin === 'fact' ? (
+                  <LampIcon />
+                ) : b.origin === 'bank' ? (
+                  <Icon name="bank" size={20} />
+                ) : (
+                  <SparklesIcon />
+                )}
+                <span>
+                  <b>{b.label}.</b> {b.basis}
+                </span>
+              </span>
+            </div>
+          </div>
         </section>
       ))}
 
       {claims.length > 0 && (
-        <section className={s.block}>
-          <h2 className={s.blockTitle}>Утверждения и доказательства</h2>
+        <section className={h.card}>
+          <h2 className={h.eventTitle}>Утверждения и доказательства</h2>
           <ol className={s.numbered}>
             {claims.map((c, i) => (
               <li key={c.id ?? i} className={s.col} style={{ gap: 6 }}>
                 <span className={s.row}>
-                  <OriginTag origin={originOf[c.kind]}>
-                    {c.kind === 'fact' ? 'Факт' : c.kind === 'bank_position' ? 'Банк' : 'AI'}
-                  </OriginTag>
+                  <b>{c.kind === 'fact' ? 'Факт' : c.kind === 'bank_position' ? 'Банк' : 'AI'}:</b>
                   <span className="t-15">
                     <RichText text={c.text!} />
                   </span>
@@ -305,28 +350,43 @@ function Blocks({
   )
 }
 
+/** Продукты банка из профиля — для краткой сводки в «Контексте решения» */
+const products = (c: Company | undefined) =>
+  c &&
+  [
+    c.has_credit && 'Кредиты',
+    c.has_leasing && 'лизинг',
+    c.has_guarantees && 'гарантии',
+    c.has_factoring && 'факторинг',
+    c.has_rko && 'РКО',
+    c.has_deposit && 'депозит',
+    c.has_payroll && 'зарплатный проект',
+  ]
+    .filter(Boolean)
+    .join(', ')
+
 /** Главное для компании — первое предложение вывода, полный текст ниже в разделе 03 */
 const firstSentence = (text: string) => /^.+?[.!?](?=\s|$)/s.exec(text)?.[0] ?? text
 
 /** Пустое поле черновика ещё пишется — не путаем его с отсутствием данных */
-const pendingText = <p className="t-15 c-muted">Формируется…</p>
+const pendingText = <p>Формируется…</p>
 
 function Text({ text }: { text: string }) {
   if (!text) return pendingText
   return (
-    <p className="t-15">
+    <p>
       <RichText text={text} />
     </p>
   )
 }
 
 function List({ items = [], pending = false }: { items?: string[]; pending?: boolean }) {
-  if (!items.length) return pending ? pendingText : <p className="t-15 c-muted">Нет данных</p>
+  if (!items.length) return pending ? pendingText : <p>Нет данных</p>
   return (
     <ul className={s.numbered}>
       {/* ключ по позиции: фрагмент дописывает пункт, а не создаёт его заново */}
       {items.map((x, i) => (
-        <li key={i} className="t-15">
+        <li key={i}>
           <RichText text={x} />
         </li>
       ))}

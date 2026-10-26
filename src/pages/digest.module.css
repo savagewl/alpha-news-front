@@ -684,3 +684,92 @@ button.origin:disabled {
     line-height: 24px;
   }
 }
+
+/* ---------- Разбор события ---------- */
+
+.eventHero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 32px;
+  border-radius: 16px;
+  background: var(--c-red);
+  color: #fff;
+}
+
+.events {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.eventTitle {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 21px;
+  color: var(--c-text);
+}
+
+.eventNum {
+  color: var(--c-red);
+}
+
+.contextText {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--c-text);
+}
+
+.unconfirmedTag {
+  align-self: flex-start;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: var(--c-red-soft);
+  color: var(--c-red);
+  font-family: var(--font-inter);
+  font-size: 11px;
+  line-height: 13px;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.actionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 17px;
+  transition: background-color 0.15s;
+}
+
+.actionBtn:hover {
+  background: var(--c-border);
+}
+
+.actionPrimary,
+.actionPrimary:hover {
+  background: var(--c-red);
+  color: #fff;
+}
+
+.actionPrimary:hover {
+  background: var(--c-red-hover);
+}
+
+@media (max-width: 720px) {
+  .eventHero {
+    flex-direction: column;
+    padding: 24px 20px;
+  }
+}
