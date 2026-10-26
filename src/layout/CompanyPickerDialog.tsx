@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { companyTitle, formatDecimal } from '../api/companyFormat'
-import type { CompanyListItem } from '../api/companyTypes'
+import { flatPages, loaderProps, useCompaniesInfinite } from '../api/companyHooks'
 import { Icon } from '../components/Icons'
+import { InfiniteLoader, Skeleton } from '../components/ui'
 import { cx } from '../components/cx'
 import s from './AppLayout.module.css'
 
 const CLOSE_MS = 180
+/** Сколько компаний подгружается за раз */
+const PAGE = 30
 
 const revenue = (value: string | null) => {
   const formatted = formatDecimal(value)
@@ -15,12 +18,10 @@ const revenue = (value: string | null) => {
 
 /** Выбор компании попапом: карточки колонками, прокручивается только список внутри */
 export function CompanyPickerDialog({
-  items,
   currentId,
   onSelect,
   onClose,
 }: {
-  items: CompanyListItem[]
   currentId: string
   onSelect: (id: string) => void
   onClose: () => void
@@ -28,6 +29,9 @@ export function CompanyPickerDialog({
   const ref = useRef<HTMLDialogElement>(null)
   const navigate = useNavigate()
   const [closing, setClosing] = useState(false)
+  const list = useCompaniesInfinite({ limit: PAGE })
+  const data = flatPages(list.data)
+  const items = data?.items ?? []
 
   useEffect(() => {
     ref.current?.showModal()
@@ -74,9 +78,12 @@ export function CompanyPickerDialog({
         </button>
       </div>
       <div className={s.pickerBody}>
-        {items.length === 0 ? (
-          <p className={s.menuNote}>У вас пока нет компаний.</p>
-        ) : (
+        {list.isLoading && <Skeleton lines={4} />}
+        {list.isError && !data && (
+          <p className={s.menuNote}>Не удалось загрузить компании. Закройте окно и повторите.</p>
+        )}
+        {data && items.length === 0 && <p className={s.menuNote}>У вас пока нет компаний.</p>}
+        {items.length > 0 && (
           <div className={s.pickerGrid}>
             {items.map((c) => (
               <button
@@ -96,6 +103,12 @@ export function CompanyPickerDialog({
               </button>
             ))}
           </div>
+        )}
+        <InfiniteLoader {...loaderProps(list)} />
+        {data && data.total > 0 && (
+          <p className={s.pickerCount}>
+            Показано {items.length} из {data.total.toLocaleString('ru-RU')}
+          </p>
         )}
       </div>
       <button

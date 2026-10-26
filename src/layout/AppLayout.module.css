@@ -681,6 +681,13 @@
   padding: 0 8px;
 }
 
+.pickerCount {
+  margin-top: 12px;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--c-muted);
+}
+
 .pickerGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

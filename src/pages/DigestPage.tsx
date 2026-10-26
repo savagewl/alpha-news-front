@@ -117,7 +117,6 @@ function Feed() {
     set,
     reset,
     filtered,
-    autoLoad,
     assessments,
     observe,
     retry,
@@ -287,7 +286,7 @@ function Feed() {
               />
             ))}
 
-            <InfiniteLoader {...loaderProps(feed)} auto={autoLoad} />
+            <InfiniteLoader {...loaderProps(feed)} />
 
             <div className={s.row}>
               <Button variant="dark" to="/saved">

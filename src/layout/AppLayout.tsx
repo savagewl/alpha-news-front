@@ -60,8 +60,10 @@ function CompanySwitcher({ compact }: { compact?: boolean }) {
   const { companyId, setCompany } = useWorkspace()
   const [open, setOpen] = useState(false)
   const list = useCompanies(switcherQuery)
+  const current = useCompany(companyId)
   const items = list.data?.items ?? []
-  const company = items.find((c) => c.id === companyId)
+  // выбранная компания может не попасть в первую порцию списка — берём её отдельным запросом
+  const company = items.find((c) => c.id === companyId) ?? current.data
   const title = company
     ? companyTitle(company)
     : list.isLoading
@@ -85,7 +87,6 @@ function CompanySwitcher({ compact }: { compact?: boolean }) {
       </button>
       {open && (
         <CompanyPickerDialog
-          items={items}
           currentId={companyId}
           onSelect={setCompany}
           onClose={() => setOpen(false)}

@@ -355,47 +355,23 @@ export function StateCard({
 }
 
 /**
- * Бесконечная прокрутка: ставится в конец списка и, как только он подходит к экрану,
- * догружает следующую порцию. После ошибки ждёт «Повторить», с auto=false — кнопку.
+ * Подгрузка порциями по кнопке «Показать ещё»: список не растёт сам, поэтому до низа
+ * страницы всегда можно доскроллить. После ошибки вместо неё — «Повторить».
  */
 export function InfiniteLoader({
   hasMore,
   loading,
   error,
-  auto = true,
   onLoad,
 }: {
   hasMore: boolean
   loading: boolean
   error?: boolean
-  /** false — не грузить самому, показать «Показать ещё» */
-  auto?: boolean
   onLoad: () => void
 }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const load = useRef(onLoad)
-  useEffect(() => {
-    load.current = onLoad
-  })
-
-  // наблюдатель пересоздаётся после каждой порции: если низ списка всё ещё в экране,
-  // первый же вызов догрузит следующую
-  useEffect(() => {
-    const el = ref.current
-    if (!el || !hasMore || loading || error || !auto) return
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) load.current()
-      },
-      { rootMargin: '0px 0px 400px 0px' },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [hasMore, loading, error, auto])
-
   if (!hasMore) return null
   return (
-    <div ref={ref} className={s.loader} aria-busy={loading}>
+    <div className={s.loader} aria-busy={loading}>
       {loading ? (
         <Skeleton lines={2} />
       ) : error ? (
@@ -404,7 +380,7 @@ export function InfiniteLoader({
           <Button onClick={onLoad}>Повторить</Button>
         </>
       ) : (
-        !auto && <Button onClick={onLoad}>Показать ещё</Button>
+        <Button onClick={onLoad}>Показать ещё</Button>
       )}
     </div>
   )
