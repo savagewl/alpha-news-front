@@ -165,9 +165,9 @@ export async function requestBlob(
     if (res.status === 401 && token) onUnauthorized?.()
     throw new ApiError(res.status, res.statusText)
   }
-  if (!onProgress || !res.body) return res.blob()
+  // тип не берём из ответа: blob открывается на origin приложения, подмена на text/html дала бы XSS
+  if (!onProgress || !res.body) return new Blob([await res.blob()], { type: 'application/pdf' })
   const total = Number(res.headers.get('Content-Length')) || 0
-  const type = res.headers.get('Content-Type') ?? ''
   const reader = res.body.getReader()
   const parts: Uint8Array<ArrayBuffer>[] = []
   let loaded = 0
@@ -178,7 +178,7 @@ export async function requestBlob(
     loaded += value.length
     onProgress(loaded, total)
   }
-  return new Blob(parts, { type })
+  return new Blob(parts, { type: 'application/pdf' })
 }
 
 function safeJson(text: string): unknown {
