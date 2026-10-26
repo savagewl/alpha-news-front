@@ -1,3 +1,33 @@
+@font-face {
+  font-family: 'Styrene A';
+  src: url('/fonts/StyreneAWeb-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  /* без цифр: их рисует Inter из запасного шрифта */
+  unicode-range: U+0000-002F, U+003A-10FFFF;
+}
+
+@font-face {
+  font-family: 'Styrene A';
+  src: url('/fonts/StyreneAWeb-Medium.woff2') format('woff2');
+  font-weight: 500 600;
+  font-style: normal;
+  font-display: swap;
+  /* без цифр: их рисует Inter из запасного шрифта */
+  unicode-range: U+0000-002F, U+003A-10FFFF;
+}
+
+@font-face {
+  font-family: 'Styrene A';
+  src: url('/fonts/StyreneAWeb-Bold.woff2') format('woff2');
+  font-weight: 700 900;
+  font-style: normal;
+  font-display: swap;
+  /* без цифр: их рисует Inter из запасного шрифта */
+  unicode-range: U+0000-002F, U+003A-10FFFF;
+}
+
 :root {
   --c-bg: #f4f3f7;
   --c-surface: #ffffff;
@@ -13,6 +43,8 @@
   --c-lime: #d7f75b;
   --c-dark: #222925;
   --c-red-hover: #d42a1e;
+  --font-text: 'Styrene A', 'Inter', system-ui, sans-serif;
+  --font-inter: 'Inter', system-ui, sans-serif;
 }
 
 *,
@@ -29,7 +61,7 @@ body {
 body {
   background: var(--c-bg);
   color: var(--c-text);
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-text);
   font-size: 13px;
   /* line-height везде в целых px — так Figma округляет высоту текстовых блоков */
   line-height: 16px;
