@@ -10,8 +10,7 @@ import { cx } from '../components/cx'
 import { useWorkspace } from '../state/context'
 import s from './AppLayout.module.css'
 import { ChangePasswordDialog } from './ChangePasswordDialog'
-
-const bankSections = ['Главная', 'Счета и платежи', 'Операции', 'Кредиты', 'Валютный контроль']
+import { CompanyPickerDialog } from './CompanyPickerDialog'
 
 interface NavEntry {
   label: string
@@ -59,7 +58,7 @@ function useCompanyGuard() {
 
 function CompanySwitcher({ compact }: { compact?: boolean }) {
   const { companyId, setCompany } = useWorkspace()
-  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
   const list = useCompanies(switcherQuery)
   const items = list.data?.items ?? []
   const company = items.find((c) => c.id === companyId)
@@ -69,48 +68,30 @@ function CompanySwitcher({ compact }: { compact?: boolean }) {
       ? 'Загрузка…'
       : 'Компания не выбрана'
   return (
-    <Dropdown
-      label="Сменить компанию"
-      className={s.company}
-      trigger={
+    <div className={s.company}>
+      <button
+        type="button"
+        className={s.companyButton}
+        aria-haspopup="dialog"
+        aria-label="Сменить компанию"
+        onClick={() => setOpen(true)}
+      >
         <span className={s.companyTrigger}>
           <span className={s.triggerText}>
             {compact && company ? `${company.id} · ${title}` : title}
           </span>
           <Icon name="chevronDown" size={14} color="var(--c-hint)" />
         </span>
-      }
-    >
-      {(close) => (
-        <>
-          {items.map((c) => (
-            <MenuItem
-              key={c.id}
-              active={c.id === companyId}
-              hint={[c.id, c.okved_name, formatDecimal(c.annual_revenue)]
-                .filter(Boolean)
-                .join(' · ')}
-              onSelect={() => {
-                setCompany(c.id)
-                close()
-              }}
-            >
-              {companyTitle(c)}
-            </MenuItem>
-          ))}
-          {items.length === 0 && <p className={s.menuNote}>У вас пока нет компаний.</p>}
-          <Divider />
-          <MenuItem
-            onSelect={() => {
-              close()
-              navigate('/companies')
-            }}
-          >
-            Все компании и загрузка CSV →
-          </MenuItem>
-        </>
+      </button>
+      {open && (
+        <CompanyPickerDialog
+          items={items}
+          currentId={companyId}
+          onSelect={setCompany}
+          onClose={() => setOpen(false)}
+        />
       )}
-    </Dropdown>
+    </div>
   )
 }
 
@@ -200,22 +181,13 @@ function Sidebar() {
       <div className={s.navGroup}>
         <span className={s.navCaption}>Интернет-банк</span>
         <div className={s.navList}>
-          {bankSections.map((label) =>
-            label === 'Главная' ? (
-              <Link
-                key={label}
-                to="/"
-                className={cx(s.navItem, home && s.navItemActive)}
-                aria-current={home ? 'page' : undefined}
-              >
-                {label}
-              </Link>
-            ) : (
-              <span key={label} className={cx(s.navItem, s.navItemStub)}>
-                {label}
-              </span>
-            ),
-          )}
+          <Link
+            to="/"
+            className={cx(s.navItem, home && s.navItemActive)}
+            aria-current={home ? 'page' : undefined}
+          >
+            Главная
+          </Link>
         </div>
       </div>
       <div className={s.navGroup}>
