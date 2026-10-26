@@ -1,6 +1,12 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { ApiError } from '../api/client'
-import { companyTitle, formatDate, formatDecimal, place } from '../api/companyFormat'
+import {
+  companyTitle,
+  formatDate,
+  formatDecimal,
+  formatRevenueShort,
+  place,
+} from '../api/companyFormat'
 import {
   flatPages,
   loaderProps,
@@ -30,6 +36,11 @@ import s from './pages.module.css'
 
 const PAGE = 20
 
+const today = () => new Date().toLocaleDateString('ru-RU', { dateStyle: 'long' })
+
+/** Значения через « / »: пустые части отбрасываем, а если нет ни одной — «Нет данных» */
+const joined = (parts: (string | null)[], sep: string) => parts.filter(Boolean).join(sep) || null
+
 /** Пустое поле набора показываем как «Нет данных», а не прячем: пробелы влияют на вывод */
 const orMissing = (v: ReactNode) =>
   v === null || v === undefined || v === '' ? <span className="c-muted">Нет данных</span> : v
@@ -37,8 +48,8 @@ const orMissing = (v: ReactNode) =>
 const yesNo = (v: boolean | null) => (v === null ? null : v ? 'да' : 'нет')
 
 const products: [keyof Company, string][] = [
+  ['has_credit', 'Кредиты'],
   ['has_rko', 'РКО'],
-  ['has_credit', 'Кредит'],
   ['has_guarantees', 'Гарантии'],
   ['has_leasing', 'Лизинг'],
   ['has_factoring', 'Факторинг'],
@@ -109,25 +120,30 @@ export default function ProfilePage() {
   return <Profile key={c.id} c={c} />
 }
 
+/** Строка серого блока признаков: подпись и значение, пустое — «Нет данных» */
+function Fact({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className={s.fact}>
+      <span className={s.factLabel}>{label}</span>
+      <span className={s.factValue}>{orMissing(value)}</span>
+    </div>
+  )
+}
+
 function Profile({ c }: { c: Company }) {
   const { notes, setNote } = useWorkspace()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
 
   const kpis = [
-    { label: 'Выручка', value: formatDecimal(c.annual_revenue) },
+    { label: 'Выручка', value: formatRevenueShort(c.annual_revenue) },
     { label: 'Основной ОКВЭД', value: c.okved_code },
     { label: 'Группа', value: c.group_id },
-    { label: 'Регион', value: place(c) },
+    // в данных бэкенда доли рынка нет — как и в макете, показываем «Нет данных»
+    { label: 'Доля рынка', value: null },
   ]
   const owned = products.filter(([k]) => c[k] === true).map(([, label]) => label)
   const productsKnown = products.some(([k]) => c[k] !== null)
-  const fts =
-    c.has_fts_data === null
-      ? null
-      : c.has_fts_data
-        ? `Да${c.fts_country_name ? ` · ${c.fts_country_name}` : ''}`
-        : 'Нет'
   const filled = profileFields.filter((k) => c[k] !== null).length
   const completeness = c.is_placeholder
     ? {
@@ -154,58 +170,77 @@ function Profile({ c }: { c: Company }) {
 
   return (
     <>
-      <PageHead
-        crumb="Профиль компании"
-        title={companyTitle(c)}
-        subtitle={`${c.id} · Обновлено ${formatDate(c.updated_at)}`}
-      >
+      <PageHead crumb="Профиль компании" title={companyTitle(c)} subtitle={`${today()} · ${c.id}`}>
         {c.is_placeholder && <Tag>Заглушка · CSV не загружен</Tag>}
       </PageHead>
 
-      <div className={s.grid4}>
+      <div className={s.kpis}>
         {kpis.map((k) => (
-          <Panel key={k.label}>
-            <Field label={k.label} value={orMissing(k.value)} />
+          <Panel key={k.label} className={s.flat}>
+            <div className={s.kpi}>
+              <span className={s.kpiLabel}>{k.label}</span>
+              <span className={s.kpiValue}>{k.value ?? 'Нет данных'}</span>
+            </div>
           </Panel>
         ))}
       </div>
 
       <div className={`${s.split} ${s.split330}`}>
         <div className={s.col} style={{ gap: 20 }}>
-          <Panel>
+          <Panel className={s.flat}>
             <h2 className="t-h2">Производство и масштаб</h2>
-            <Field label="Отрасль и основная деятельность" value={orMissing(c.okved_name)} />
-            <div className={s.grid2}>
-              <Field
-                label="Стадия / возраст"
-                value={
-                  <>
-                    {orMissing(c.development_stage)} / {orMissing(c.age_category)}
-                  </>
-                }
-              />
-              <Field
-                label="Численность ФНС / СПАРК"
-                value={
-                  <>
-                    {orMissing(c.employees_fns_category)} / {orMissing(c.employees_spark_category)}
-                  </>
-                }
-              />
+            <div className={s.facts}>
+              <Fact label="Отрасль и основная деятельность" value={c.okved_name} />
+              <div className={s.factsRow}>
+                <Fact
+                  label="Масштаб / стадия"
+                  value={joined([c.client_type, c.development_stage], ' / ')}
+                />
+                <Fact
+                  label="Возраст / численность"
+                  value={joined(
+                    [
+                      c.age_category,
+                      joined(
+                        [
+                          c.employees_fns_category,
+                          c.employees_spark_category !== c.employees_fns_category
+                            ? c.employees_spark_category
+                            : null,
+                        ],
+                        ' · СПАРК ',
+                      ),
+                    ],
+                    ' / ',
+                  )}
+                />
+              </div>
+              <Fact label="Регион / группа" value={joined([place(c), c.group_id], ' / ')} />
             </div>
-            <Field label="Тип клиента" value={orMissing(c.client_type)} />
+            <p className={s.factNote}>
+              Положение на рынке: {c.okved_name ? `${c.okved_name}. ` : ''}Рыночная доля и место в
+              отраслевом рейтинге не предоставлены.
+            </p>
           </Panel>
-          <Panel>
+          <Panel className={s.flat}>
             <h2 className="t-h2">Банковский и внешнеторговый контекст</h2>
-            <Field
-              label="Продукты"
-              value={orMissing(productsKnown ? owned.join(' · ') || 'Нет' : null)}
-            />
-            <Field label="Внешняя торговля (ФТС)" value={orMissing(fts)} />
-            <Field label="Ключевой собственник" value={orMissing(yesNo(c.key_owner_flag))} />
-            <div className={s.row}>
-              <Tag>ORG_TYPE: {c.org_type ?? 'нет данных'}</Tag>
-              <Tag>Форма собственности: {c.ownership_form ?? 'нет данных'}</Tag>
+            <div className={s.facts}>
+              <Fact label="Продукты" value={productsKnown ? owned.join(' · ') || 'Нет' : null} />
+              <Fact
+                label="Внешняя торговля"
+                value={
+                  c.has_fts_data === null
+                    ? null
+                    : `FTS_FLAG: ${c.has_fts_data ? 'да' : 'нет'}${c.fts_country_name ? ` · Импорт: ${c.fts_country_name}` : ''}`
+                }
+              />
+              <Fact label="Ключевой собственник" value={yesNo(c.key_owner_flag)} />
+            </div>
+            <div className={s.row} style={{ gap: 10 }}>
+              <span className={s.marker}>ORG_TYPE: {c.org_type ?? 'нет данных'}</span>
+              <span className={s.marker}>
+                Форма собственности: {c.ownership_form ?? 'нет данных'}
+              </span>
             </div>
           </Panel>
         </div>

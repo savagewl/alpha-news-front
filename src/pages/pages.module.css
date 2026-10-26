@@ -789,3 +789,98 @@
     line-height: 31px;
   }
 }
+
+/* Профиль компании */
+.flat {
+  box-shadow: none;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.kpiLabel {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--c-muted);
+}
+
+.kpiValue {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 35px;
+  color: var(--c-text);
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 9px;
+  background: var(--c-bg);
+}
+
+.factsRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.factLabel {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--c-muted);
+}
+
+.factValue {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 22px;
+  color: var(--c-text);
+}
+
+.factNote {
+  font-family: var(--font-inter);
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--c-text);
+}
+
+.marker {
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: #f3f4f3;
+  font-family: var(--font-inter);
+  font-size: 11px;
+  line-height: 13px;
+  color: var(--c-text);
+}
+
+@media (max-width: 1200px) {
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .kpis,
+  .factsRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
