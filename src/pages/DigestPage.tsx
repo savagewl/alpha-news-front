@@ -226,7 +226,7 @@ function Feed() {
                 </Button>
               </div>
               <div className={`${s.row} ${s.between}`}>
-                <p className="t-12 c-muted">
+                <p className={h.sortNote}>
                   По релевантности ↓ · {first.total}{' '}
                   {plural(first.total, 'новость', 'новости', 'новостей')} ·{' '}
                   {first.ranking_method === 'hybrid'
@@ -290,7 +290,9 @@ function Feed() {
             <InfiniteLoader {...loaderProps(feed)} auto={autoLoad} />
 
             <div className={s.row}>
-              <Button to="/saved">Показать сохранённое · {saved.length}</Button>
+              <Button variant="dark" to="/saved">
+                Показать сохранённое · {saved.length}
+              </Button>
               {filtered && visible.length > 0 && <Button onClick={reset}>Сбросить фильтры</Button>}
             </div>
           </div>

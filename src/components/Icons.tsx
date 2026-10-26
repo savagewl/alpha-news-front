@@ -180,6 +180,12 @@ const paths = {
       <path d="M6 18v-7" />
     </>
   ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
+    </>
+  ),
   chevronDown: <path d="m6 9 6 6 6-6" />,
   close: (
     <>
@@ -267,6 +273,14 @@ export const HeartIcon = ({ filled }: { filled?: boolean }) => (
     aria-hidden
   >
     <path d="M4.25 2.02c-.85 0-1.7.27-2.34.92-1.3 1.3-1.26 3.32 0 4.62l4.13 4.32c.52.55 1.4.55 1.93 0l4.13-4.32c1.25-1.3 1.29-3.32 0-4.62a3.85 3.85 0 0 0-4.68 0L7 3.38l-.41-.44a3.27 3.27 0 0 0-2.34-.92Z" />
+  </svg>
+)
+
+/** Лампочка у факта в карточке события */
+export const LampIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="var(--c-text)" aria-hidden>
+    <path d="M10 2.5a5.5 5.5 0 0 0-3.3 9.9c.5.4.8.9.8 1.5v.35h5v-.35c0-.6.3-1.1.8-1.5A5.5 5.5 0 0 0 10 2.5Z" />
+    <path d="M7.5 15.9h5v1H7.5zM8.3 17.6h3.4v1H8.3z" />
   </svg>
 )
 

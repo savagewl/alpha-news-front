@@ -17,6 +17,18 @@ export function formatDecimal(value: string | null | undefined): string | null {
   return `${sign}${digits}${cents ? `,${cents}` : ''}`
 }
 
+/** Выручка для карточек: «42,8 млрд ₽», «350 млн ₽»; мелкие суммы — полностью */
+export function formatRevenueShort(value: string | null | undefined): string | null {
+  const full = formatDecimal(value)
+  if (full === null) return null
+  const n = Number(value)
+  const short = (v: number, unit: string) =>
+    `${(Math.round(v * 10) / 10).toString().replace('.', ',')} ${unit} ₽`
+  if (Math.abs(n) >= 1e9) return short(n / 1e9, 'млрд')
+  if (Math.abs(n) >= 1e6) return short(n / 1e6, 'млн')
+  return `${full} ₽`
+}
+
 /** Бэк может отдать Decimal в экспоненте («1.2E+5») — сдвигаем запятую в строке */
 function expandExponent(value: string): string {
   const m = /^([+-]?)(\d+)(?:\.(\d*))?e([+-]?\d+)$/i.exec(value.trim())

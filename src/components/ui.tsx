@@ -36,7 +36,7 @@ export function Tag({
 }
 
 interface ButtonProps {
-  variant?: 'primary' | 'secondary'
+  variant?: 'primary' | 'secondary' | 'dark'
   to?: string
   type?: 'button' | 'submit'
   disabled?: boolean

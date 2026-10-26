@@ -1,15 +1,24 @@
 import { useEffect, useState, type CSSProperties, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiError } from '../api/client'
-import { companyTitle, formatDecimal, place, plural } from '../api/companyFormat'
+import { companyTitle, formatRevenueShort, place, plural } from '../api/companyFormat'
 import {
   flatPages,
   loaderProps,
   useCompaniesInfinite,
+  useCompany,
   useCreateCompany,
   useImportCsv,
 } from '../api/companyHooks'
-import type { CsvDelimiter, CsvEncoding, ImportKind, ImportResult } from '../api/companyTypes'
+import type {
+  Company,
+  CompanyListItem,
+  CsvDelimiter,
+  CsvEncoding,
+  ImportKind,
+  ImportResult,
+} from '../api/companyTypes'
+import { Icon } from '../components/Icons'
 import {
   Button,
   InfiniteLoader,
@@ -24,6 +33,8 @@ import { PageHead } from '../layout/AppLayout'
 import { useWorkspace } from '../state/context'
 import a from './auth.module.css'
 import s from './pages.module.css'
+
+const today = () => new Date().toLocaleDateString('ru-RU', { dateStyle: 'long' })
 
 /** Сколько компаний подгружается за раз */
 const PAGE = 5
@@ -55,19 +66,21 @@ export default function CompaniesPage() {
       <PageHead
         crumb="Компании"
         title="Сначала — контекст бизнеса"
-        subtitle="Профиль компании определяет, какие события попадут в сводку."
+        subtitle={`${today()} · ${companyId}`}
       />
 
       <div className={`${s.split} ${s.split330}`}>
         <div className={s.col}>
-          <input
-            className={s.search}
-            type="search"
-            aria-label="Поиск компании"
-            placeholder="⌕ Поиск по названию, ID, ОКВЭД или городу"
-            value={query}
-            onChange={(e) => search(e.target.value)}
-          />
+          <label className={s.search}>
+            <Icon name="search" size={22} color="var(--c-muted)" />
+            <input
+              type="search"
+              aria-label="Поиск компании"
+              placeholder="Поиск по названию, ID, ОКВЭД или городу"
+              value={query}
+              onChange={(e) => search(e.target.value)}
+            />
+          </label>
           {isLoading && <Skeleton lines={4} />}
           {isError && (
             <StateCard
@@ -94,44 +107,15 @@ export default function CompaniesPage() {
                 text="Создайте компанию или загрузите CSV юридических лиц справа. Ещё вас может добавить участник компании — для этого передайте ему свой ID из меню профиля."
               />
             ))}
-          {data?.items.map((c, i) => {
-            const selected = c.id === companyId
-            const revenue = formatDecimal(c.annual_revenue)
-            const where = place(c)
-            return (
-              <button
-                key={c.id}
-                type="button"
-                className={cx(s.company, 'appear', selected && s.companySelected)}
-                style={{ '--i': i % PAGE } as CSSProperties}
-                aria-pressed={selected}
-                onClick={() => setCompany(c.id)}
-              >
-                <span className={s.companyTop}>
-                  <span className={s.row}>
-                    <Tag variant={selected ? 'red' : 'neutral'}>{c.id}</Tag>
-                    {c.is_placeholder && <Tag>Заглушка · CSV не загружен</Tag>}
-                  </span>
-                  <Tag>{selected ? '✓ Выбрана' : 'Выбрать →'}</Tag>
-                </span>
-                <span className="t-h3">{companyTitle(c)}</span>
-                <span className="t-15">
-                  {[
-                    c.okved_name,
-                    c.okved_code && `ОКВЭД ${c.okved_code}`,
-                    revenue && `Выручка ${revenue}`,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ') || <span className="c-muted">Атрибуты не загружены</span>}
-                </span>
-                {(where || c.group_id) && (
-                  <span className="t-12 c-muted">
-                    {[where, c.group_id && `Группа ${c.group_id}`].filter(Boolean).join(' · ')}
-                  </span>
-                )}
-              </button>
-            )
-          })}
+          {data?.items.map((c, i) => (
+            <CompanyCard
+              key={c.id}
+              item={c}
+              index={i % PAGE}
+              selected={c.id === companyId}
+              onSelect={() => setCompany(c.id)}
+            />
+          ))}
           <InfiniteLoader {...loaderProps(list)} />
           {data && data.total > 0 && (
             <span className="t-12 c-muted" style={{ opacity: isFetching ? 0.6 : 1 }}>
@@ -154,6 +138,88 @@ export default function CompaniesPage() {
         </div>
       </div>
     </>
+  )
+}
+
+/** Продукты банка компании — метки под описанием */
+const products = (c: Company) =>
+  [
+    c.has_credit && 'Кредиты',
+    c.has_rko && 'РКО',
+    c.has_guarantees && 'гарантии',
+    c.has_leasing && 'лизинг',
+    c.has_factoring && 'факторинг',
+    c.has_deposit && 'депозит',
+    c.has_payroll && 'ЗП-проект',
+  ].filter(Boolean) as string[]
+
+/** Профиль подгружается отдельным запросом (общий кеш с переключателем компании) */
+function CompanyCard({
+  item: c,
+  index,
+  selected,
+  onSelect,
+}: {
+  item: CompanyListItem
+  index: number
+  selected: boolean
+  onSelect: () => void
+}) {
+  const { data: full } = useCompany(c.id)
+  const where = place(c)
+  const line = [c.okved_name, c.okved_code, formatRevenueShort(c.annual_revenue)].filter(Boolean)
+  const tags = full ? products(full) : []
+  return (
+    <button
+      type="button"
+      className={cx(s.company, 'appear', selected && s.companySelected)}
+      style={{ '--i': index } as CSSProperties}
+      aria-pressed={selected}
+      onClick={onSelect}
+    >
+      <span className={s.companyHead}>
+        <span className={s.companyChips}>
+          <span className={s.chip}>{c.id}</span>
+          {where && <span className={s.chip}>{where}</span>}
+          {c.is_placeholder && <span className={s.chip}>Заглушка · CSV не загружен</span>}
+        </span>
+        <span className={s.picked} data-selected={selected}>
+          <span className={s.pickedBox}>
+            {selected && (
+              <svg width="9" height="7" viewBox="0 0 9 7" fill="none" aria-hidden>
+                <path
+                  d="M1 3.5 3.3 5.8 8 1"
+                  stroke="#fff"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+            )}
+          </span>
+          {selected ? 'Выбрано' : 'Выбрать'}
+        </span>
+      </span>
+      <span className={s.companyTitle}>{companyTitle(c)}</span>
+      <span className={s.companyBody}>
+        <span className={s.companyLine}>
+          {line.length ? line.join(' · ') : 'Атрибуты не загружены'}
+        </span>
+        {full?.fts_country_name && (
+          <span className={s.companySub}>
+            <b>Импорт:</b> {full.fts_country_name}
+          </span>
+        )}
+        {tags.length > 0 && (
+          <span className={s.companyChips}>
+            {tags.map((t) => (
+              <span key={t} className={s.chip}>
+                {t}
+              </span>
+            ))}
+          </span>
+        )}
+      </span>
+    </button>
   )
 }
 

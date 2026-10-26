@@ -31,7 +31,7 @@
   margin-bottom: 16px;
   padding: 32px;
   border-radius: 16px;
-  background: var(--c-text);
+  background: var(--c-red);
   color: #fff;
 }
 
@@ -64,6 +64,10 @@
   line-height: 19px;
 }
 
+.heroText {
+  color: rgb(255 255 255 / 0.7);
+}
+
 .heroBasis {
   font-weight: 400;
 }
@@ -89,7 +93,7 @@
   padding: 0 24px;
   border: 0;
   border-radius: 10px;
-  background: var(--c-red);
+  background: var(--c-text);
   color: #fff;
   font-size: 14px;
   font-weight: 500;
@@ -101,7 +105,7 @@
 }
 
 .heroLink:hover {
-  background: var(--c-red-hover);
+  background: var(--c-black);
 }
 
 .heroLink:focus-visible {
@@ -125,6 +129,15 @@
   padding: 24px;
   border-radius: 16px;
   background: var(--c-surface);
+}
+
+/* Тело карточки: слева тонкая линия, как в макете */
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-left: 8px;
+  border-left: 1px solid var(--c-black);
 }
 
 .assessing {
@@ -217,17 +230,80 @@
   padding: 5px 9px;
   border-radius: 6px;
   background: var(--c-bg);
+  box-shadow: inset 0 0 0 1px var(--c-border);
   color: var(--c-muted);
-  font-size: 11px;
-  line-height: 13px;
+  font-family: var(--font-inter);
+  font-size: 12px;
+  line-height: 15px;
   /* причина релевантности бывает длиннее строки — переносим, а не выдавливаем ленту вбок */
   max-width: 100%;
   overflow-wrap: anywhere;
 }
 
-.chipRank {
-  background: var(--c-red);
-  color: #fff;
+.reasonWrap {
+  position: relative;
+  max-width: 100%;
+}
+
+.chipButton {
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.chipButton:hover,
+.chipOpen {
+  background: var(--c-border);
+}
+
+.chipButton:focus-visible {
+  outline: 2px solid var(--c-red);
+  outline-offset: 2px;
+}
+
+.chipMore {
+  margin-left: 6px;
+  color: var(--c-text);
+  font-weight: 600;
+}
+
+.reasonPopover {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 340px;
+  max-width: calc(100vw - 48px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--c-surface);
+  box-shadow:
+    0 0 0 1px var(--c-border),
+    0 8px 24px rgb(0 0 0 / 0.12);
+  animation: fade 0.15s ease-out;
+}
+
+.reasonHead {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 17px;
+  color: var(--c-text);
+}
+
+.reasonList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--c-muted);
 }
 
 .chipNew {
@@ -244,15 +320,16 @@
   border: 0;
   border-radius: 12px;
   background: var(--c-bg);
-  color: var(--c-text);
+  box-shadow: inset 0 0 0 1px var(--c-black);
+  color: var(--c-black);
   font-size: 12px;
   line-height: 15px;
   cursor: pointer;
-  transition: box-shadow 0.15s;
+  transition: background-color 0.15s;
 }
 
 .save:hover {
-  box-shadow: inset 0 0 0 1px var(--c-text);
+  background: var(--c-border);
 }
 
 .cardTitle {
@@ -269,6 +346,39 @@
 .cardText {
   font-size: 13px;
   line-height: 19px;
+  color: var(--c-muted);
+}
+
+/* Строка «Факт / AI» без плашек */
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 32px;
+}
+
+.metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--c-muted);
+}
+
+.metaItem b {
+  font-weight: 500;
+}
+
+.metaItem svg {
+  flex: none;
+}
+
+.sortNote {
+  font-family: var(--font-inter);
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--c-muted);
 }
 
 .origins {

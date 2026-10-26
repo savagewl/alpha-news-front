@@ -9,8 +9,9 @@ import type { CompanyNewsItem, InterpretationSource } from '../api/companyNewsTy
 import { useWorkspace } from '../state/context'
 import s from '../pages/digest.module.css'
 import { cx } from './cx'
-import { HeartIcon, SparklesIcon } from './Icons'
+import { HeartIcon, LampIcon, SparklesIcon } from './Icons'
 import { OpenPdf } from './OpenPdf'
+import { RelevanceChip } from './RelevanceChip'
 import { RichText } from './Typewriter'
 import { OriginTag, SkeletonBar } from './ui'
 
@@ -109,9 +110,7 @@ export function FeedCard({
                 {topicLabel[t] ?? t}
               </span>
             ))}
-            {item.relevance_reasons[0] && (
-              <span className={s.chip}>{item.relevance_reasons[0]}</span>
-            )}
+            <RelevanceChip reasons={item.relevance_reasons} score={item.relevance_score} />
           </div>
           <button
             type="button"
@@ -128,79 +127,82 @@ export function FeedCard({
         </h3>
       </div>
 
-      <p className={s.cardText}>
-        {item.brief_impact ? <RichText text={stripCitations(item.brief_impact)} /> : item.summary}
-      </p>
-
-      {a?.status === 'generating' && (
-        <div className={s.assessing} aria-hidden>
-          <SkeletonBar width="88%" />
-          <SkeletonBar width="64%" />
-          <SkeletonBar width="40%" />
-        </div>
-      )}
-
-      {/* [] у оценённой новости — пункты не выделены, это тоже результат: говорим об этом явно */}
-      {ready &&
-        (item.risks?.length || item.opportunities?.length ? (
-          <div className={cx(s.impact, 'appear')}>
-            <ImpactList title="△ Риски" items={item.risks ?? []} />
-            <ImpactList title="↗ Возможности" items={item.opportunities ?? []} />
-          </div>
-        ) : (
-          <p className={cx(s.impactNone, 'appear')}>Рисков и возможностей не выявлено</p>
-        ))}
-
-      {bank && (
-        <div className={cx(s.bank, 'appear')}>
-          <OriginTag origin="bank">Аналитика банка</OriginTag>
-          <p className={s.cardText}>
-            <RichText text={stripCitations(bank)} />
-          </p>
-          {pdfs.length > 0 && (
-            <div className={s.origins}>
-              {pdfs.map((p) => (
-                <OpenPdf
-                  key={p.key}
-                  documentId={p.id}
-                  page={p.page}
-                  label={p.page ? `${p.title} · стр. ${p.page}` : p.title}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {a?.status === 'needs_revision' && (
-        <p className={s.note}>Оценка не прошла проверку — непроверенный вывод не показан.</p>
-      )}
-      {a?.status === 'insufficient' && (
-        <p className={s.note}>Недостаточно данных, чтобы оценить влияние на компанию.</p>
-      )}
-      {(a?.status === 'failed' || a?.status === 'interrupted') && (
-        <p className="t-13 c-red" role="alert">
-          {a.status === 'interrupted'
-            ? 'Оценка прервана: соединение оборвалось.'
-            : `Не удалось оценить${a.detail ? `: ${a.detail}` : '.'}`}{' '}
-          {(a.status === 'interrupted' || a.retryable) && onRetry && (
-            <button type="button" className={s.inlineLink} onClick={onRetry}>
-              Повторить
-            </button>
-          )}
+      <div className={s.cardBody}>
+        <p className={s.cardText}>
+          {item.brief_impact ? <RichText text={stripCitations(item.brief_impact)} /> : item.summary}
         </p>
-      )}
 
-      <div className={s.origins}>
-        <span className={s.origin}>
-          <span>
-            <b>Факт:</b> {source}
+        {a?.status === 'generating' && (
+          <div className={s.assessing} aria-hidden>
+            <SkeletonBar width="88%" />
+            <SkeletonBar width="64%" />
+            <SkeletonBar width="40%" />
+          </div>
+        )}
+
+        {/* [] у оценённой новости — пункты не выделены, это тоже результат: говорим об этом явно */}
+        {ready &&
+          (item.risks?.length || item.opportunities?.length ? (
+            <div className={cx(s.impact, 'appear')}>
+              <ImpactList title="△ Риски" items={item.risks ?? []} />
+              <ImpactList title="↗ Возможности" items={item.opportunities ?? []} />
+            </div>
+          ) : (
+            <p className={cx(s.impactNone, 'appear')}>Рисков и возможностей не выявлено</p>
+          ))}
+
+        {bank && (
+          <div className={cx(s.bank, 'appear')}>
+            <OriginTag origin="bank">Аналитика банка</OriginTag>
+            <p className={s.cardText}>
+              <RichText text={stripCitations(bank)} />
+            </p>
+            {pdfs.length > 0 && (
+              <div className={s.origins}>
+                {pdfs.map((p) => (
+                  <OpenPdf
+                    key={p.key}
+                    documentId={p.id}
+                    page={p.page}
+                    label={p.page ? `${p.title} · стр. ${p.page}` : p.title}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {a?.status === 'needs_revision' && (
+          <p className={s.note}>Оценка не прошла проверку — непроверенный вывод не показан.</p>
+        )}
+        {a?.status === 'insufficient' && (
+          <p className={s.note}>Недостаточно данных, чтобы оценить влияние на компанию.</p>
+        )}
+        {(a?.status === 'failed' || a?.status === 'interrupted') && (
+          <p className="t-13 c-red" role="alert">
+            {a.status === 'interrupted'
+              ? 'Оценка прервана: соединение оборвалось.'
+              : `Не удалось оценить${a.detail ? `: ${a.detail}` : '.'}`}{' '}
+            {(a.status === 'interrupted' || a.retryable) && onRetry && (
+              <button type="button" className={s.inlineLink} onClick={onRetry}>
+                Повторить
+              </button>
+            )}
+          </p>
+        )}
+
+        <div className={s.meta}>
+          <span className={s.metaItem}>
+            <LampIcon />
+            <span>
+              <b>Факт:</b> {source}
+            </span>
           </span>
-        </span>
-        <span className={cx(s.origin, busy && s.pulse)} title="Вывод AI">
-          <SparklesIcon />
-          {assessmentLabel(ready, a)}
-        </span>
+          <span className={cx(s.metaItem, busy && s.pulse)} title="Вывод AI">
+            <SparklesIcon />
+            {assessmentLabel(ready, a)}
+          </span>
+        </div>
       </div>
     </article>
   )
